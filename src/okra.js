@@ -177,7 +177,7 @@ const isCoarseSearch = ({ entity, attribute, value }) =>
  * when `value` is not provided or `VAET` otherwise. When only `value` is
  * provided it will use `VAET` index.
  *
- * @typedef {[index:Uint8Array, group: Uint8Array, subgroup: Uint8Array | null, member: Uint8Array | null]} SearchPath
+ * @typedef {[index:Uint8Array, group: Uint8Array | null, subgroup: Uint8Array | null, member: Uint8Array | null]} SearchPath
  * @param {API.FactsSelector} selector
  * @returns {SearchPath}
  */
