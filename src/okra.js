@@ -8,11 +8,15 @@ import * as CBOR from '@ipld/dag-cbor'
 import { fileURLToPath } from 'node:url'
 import { base58btc } from 'multiformats/bases/base58'
 
-const { Link } = Constant
+const { Link, Bytes } = Constant
 export { Link, CBOR }
 
 const instances = new WeakMap()
 
+/**
+ * Represents an opaque database type with a methods corresponding to the
+ * static functions exported by this module.
+ */
 export class Database {
   /**
    * @param {Okra.Tree} tree
@@ -24,6 +28,9 @@ export class Database {
   }
 }
 
+/**
+ * Represents current revision of the database.
+ */
 class Revision {
   #root
   /**
@@ -32,12 +39,16 @@ class Revision {
   constructor(root) {
     this.#root = root
   }
+  /**
+   * Hash of the merkle tree root of the database encoded as base58btc.
+   */
   get id() {
     return base58btc.baseEncode(this.#root.hash)
   }
 }
 
 /**
+ * Resolves underlying Okra.Tree instance.
  *
  * @param {Database} database
  * @returns {Okra.Tree}
@@ -45,9 +56,9 @@ class Revision {
 const tree = (database) => instances.get(database)
 
 /**
- * @typedef {import('@canvas-js/okra').Tree} Tree
- */
-/**
+ * Opens a database instance at the given URL. If the URL is not provided or
+ * has a `memory:` protocol, an ephemeral in-memory database returned. If the
+ * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
  * @param {URL} [url]
  * @param {import('@canvas-js/okra-lmdb').TreeOptions} [options]
@@ -64,46 +75,116 @@ export const open = (url, options) => {
 }
 
 /**
+ * Returns current revision of the database.
+ *
  * @param {Database} db
  */
 export const status = (db) =>
   tree(db).read((reader) => new Revision(reader.getRoot()))
 
 /**
+ * Closes the database instance. This is required to release filesystem lock
+ * when using LMDB.
+ *
  * @param {Database} db
  */
 export const close = (db) => tree(db).close()
 
 /**
+ * Database fact with a causal link to a transaction from which this fact was
+ * originated.
+ *
  * @typedef {readonly [entity: API.Entity, attribute: API.Attribute, value:API.Constant, cause: API.Entity]} Datum
+ */
+
+/**
+ * Scans the database for all the datums that match a given selector, which
+ * may include entity, attribute, and value or any combination of them. Will
+ * return all the datums that match the selector.
+ *
  * @param {Database} db
  * @param {API.FactsSelector} selector
  * @returns {Promise<Datum[]>}
  */
-export const scan = (db, { entity, attribute, value }) => {
-  return tree(db).read((reader) => {
+export const scan = (db, { entity, attribute, value }) =>
+  tree(db).read((reader) => {
+    // Derives a search key path from the given selector. That will choose an
+    // appropriate index.
     const path = deriveSearchPath({ entity, attribute, value })
-    const key = path ? toSearchKey(path) : null
-    const entries = key
-      ? reader.entries(toLowerBound(key), toUpperBound(key))
-      : reader.entries()
+    // Converts path into a key prefix to search by.
+    const prefix = toSearchKey(path)
+    const entries = reader.entries(toLowerBound(prefix), toUpperBound(prefix))
 
-    /** @type {Datum[]} */
-    const results = []
-    for (const [key, value] of entries) {
-      const datum = CBOR.decode(value)
-      results.push(datum)
-    }
-    return results
+    // When we know entity and value but not the attribute we have an atypical
+    // access pattern for which we do not have a dedicated index. In this case
+    // we use `EAVT` index to retrieve all datums for the entity and then filter
+    // out the ones that do not match the value.
+    return isCoarseSearch({ entity, attribute, value })
+      ? collectMatchingDatums(entries, path)
+      : collectDatums(entries)
   })
+
+/**
+ * @param {IterableIterator<Okra.Entry>} entries
+ * @returns
+ */
+const collectDatums = (entries) => {
+  const results = []
+  for (const [, value] of entries) {
+    const datum = CBOR.decode(value)
+    results.push(datum)
+  }
+  return results
 }
 
 /**
+ * @param {IterableIterator<Okra.Entry>} entries
+ * @param {SearchPath} path
+ * @returns
+ */
+const collectMatchingDatums = (
+  entries,
+  [_index, _entity, _attribute, value]
+) => {
+  const results = []
+  const suffix = /** @type {Uint8Array} */ (value)
+  const offset = suffix.length + 1
+  for (const [key, value] of entries) {
+    if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
+      const datum = CBOR.decode(value)
+      results.push(datum)
+    }
+  }
+  return results
+}
+
+/**
+ * We may know entity and value but not the attribute. This is a rare case and
+ * we do not have `EVAT` index to support it. In such case we  `EAVT` index
+ * which retrieve all datums for and will have to then filter out the ones
+ * that do not match the value.
+ *
  * @param {API.FactsSelector} selector
- * @returns {[index:Uint8Array, group: Uint8Array, subgroup: Uint8Array | null, member: Uint8Array | null]|null}
+ * @return {selector is [entity: API.Entity, attribute: undefined, value: API.Constant]}
+ */
+const isCoarseSearch = ({ entity, attribute, value }) =>
+  entity != null && attribute === undefined && value != undefined
+
+/**
+ * Derives a search path from the given selector, by choosing an appropriate
+ * index to scan in. When `entity` is provided `EAVT` index is used. When
+ * `entity` is not provided but `attribute` is provided it will use `AEVT`
+ * when `value` is not provided or `VAET` otherwise. When only `value` is
+ * provided it will use `VAET` index.
+ *
+ * @typedef {[index:Uint8Array, group: Uint8Array, subgroup: Uint8Array | null, member: Uint8Array | null]} SearchPath
+ * @param {API.FactsSelector} selector
+ * @returns {SearchPath}
  */
 
 export const deriveSearchPath = ({ entity, attribute, value }) => {
+  // If we know an this looks like primary key lookup in traditional databases
+  // in this case we use EAVT index.
   if (entity) {
     return [
       EAVT,
@@ -111,14 +192,25 @@ export const deriveSearchPath = ({ entity, attribute, value }) => {
       attribute === undefined ? null : CBOR.encode(attribute),
       value === undefined ? null : Link.toBytes(Link.of(value)),
     ]
-  } else if (attribute != null) {
-    return value !== undefined
-      ? [VAET, Link.toBytes(Link.of(value)), CBOR.encode(attribute), null]
-      : [AEVT, CBOR.encode(attribute), null, null]
-  } else if (value !== undefined) {
-    return [VAET, Link.toBytes(Link.of(value)), null, null]
-  } else {
-    return null
+  }
+  // If we do not know the entity but know a value we are most likely doing
+  // a reverse lookup. In this case we use VAET index is used.
+  else if (value !== undefined) {
+    return [
+      VAET,
+      Link.toBytes(Link.of(value)),
+      attribute === undefined ? null : CBOR.encode(attribute),
+      null,
+    ]
+  }
+  // If we know neither entity nor value we have column-style access pattern
+  // and we use AEVT index.
+  else if (attribute !== undefined) {
+    return [AEVT, CBOR.encode(attribute), null, null]
+  }
+  // If we know nothing we simply choose an EAVT index.
+  else {
+    return [EAVT, null, null, null]
   }
 }
 
@@ -143,13 +235,13 @@ export const toLowerBound = (key) => {
 }
 /**
  *
- * @param {[index:Uint8Array, group:Uint8Array, subgroup: Uint8Array|null, member: Uint8Array|null]} path
+ * @param {[index:Uint8Array, group:Uint8Array|null, subgroup: Uint8Array|null, member: Uint8Array|null]} path
  */
 export const toSearchKey = ([index, group, subgroup, member]) => {
   const size =
     index.length +
     1 +
-    group.length +
+    (group?.length ?? 0) +
     1 +
     (subgroup?.length ?? 0) +
     1 +
@@ -165,10 +257,14 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
   key.set([0], offset)
   offset += 1
 
-  key.set(group, offset)
-  offset += group.length
-  key.set([0], offset)
-  offset += 1
+  if (group) {
+    key.set(group, offset)
+    offset += group.length
+    key.set([0], offset)
+    offset += 1
+  } else {
+    return key.subarray(0, offset)
+  }
 
   if (subgroup) {
     key.set(subgroup, offset)

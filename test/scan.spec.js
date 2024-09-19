@@ -72,24 +72,23 @@ export const testScan = {
   'full scan': async (assert) => {
     const { db, cause, tx, list, milk, eggs, bread } = await loadTodo()
 
-    const datoms = /** @type {const} */ ([
-      [milk, 'title', 'Buy Milk', cause],
-      [eggs, 'title', 'Buy Eggs', cause],
-      [bread, 'title', 'Buy Bread', cause],
-      [bread, 'done', true, cause],
-      [list, 'title', 'Todo List', cause],
-      [list, 'todo', bread, cause],
-      [list, 'todo', eggs, cause],
-      [list, 'todo', milk, cause],
-      [cause, 'db/source', DB.CBOR.encode(tx.cause), cause],
-    ])
-
     assert.deepEqual(
-      [...(await DB.scan(db, {}))].sort(),
-      [...datoms, ...datoms, ...datoms].sort()
+      new Set(await DB.scan(db, {})),
+      new Set(
+        /** @type {const} */ ([
+          [milk, 'title', 'Buy Milk', cause],
+          [eggs, 'title', 'Buy Eggs', cause],
+          [bread, 'title', 'Buy Bread', cause],
+          [bread, 'done', true, cause],
+          [list, 'title', 'Todo List', cause],
+          [list, 'todo', bread, cause],
+          [list, 'todo', eggs, cause],
+          [list, 'todo', milk, cause],
+          [cause, 'db/source', DB.CBOR.encode(tx.cause), cause],
+        ])
+      )
     )
   },
-
   'scan by entity, attribute, value': async (assert) => {
     const { db, cause, bread } = await loadTodo()
 
@@ -106,6 +105,13 @@ export const testScan = {
     )
   },
 
+  'leaves EAVT entries with missmatched values': async (assert) => {
+    const { db, cause, bread, list } = await loadTodo()
+
+    const matches = await DB.scan(db, { entity: list, value: bread })
+
+    assert.deepEqual(matches, [[list, 'todo', bread, cause]])
+  },
   'retract fact': async (assert) => {
     const { db, cause, bread } = await loadTodo()
 
