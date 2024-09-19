@@ -123,13 +123,13 @@ export const testScan = {
   },
   'throws on unknown urls': async (assert) => {
     assert.throws(
-      () => DB.open(new URL('https://github.com/gozala/datura')),
+      () => DB.open(new URL('https://github.com/gozala/synopsys')),
       /Unsupported protocol\: https/
     )
   },
   'works with LMDB': async (assert) => {
     const temp = pathToFileURL(OS.tmpdir())
-    const url = new URL('./datura-test', `${temp}/`)
+    const url = new URL('./synopsys-test', `${temp}/`)
     const { db, tx } = await loadTodo(url)
     try {
       assert.deepEqual(tx.before.id, 'NcuV3vKyQgcxiZDMdE37fv')
