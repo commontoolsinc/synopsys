@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Gozala/synopsys/compare/v1.0.0...v1.1.0) (2024-09-20)
+
+
+### Features
+
+* implement query support ([19854be](https://github.com/Gozala/synopsys/commit/19854bec6cb102e7eed0b2cf3319e0ba70aea861))
+
 ## 1.0.0 (2024-09-19)
 
 
