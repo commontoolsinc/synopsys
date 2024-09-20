@@ -2,20 +2,23 @@ import * as LMDB from '@canvas-js/okra-lmdb'
 import * as Memory from '@canvas-js/okra-memory'
 import * as Okra from '@canvas-js/okra'
 export * from '@canvas-js/okra'
-import { Constant, API } from 'datalogia'
 import * as UTF8 from './utf8.js'
+import { Constant, API, Task } from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 import { fileURLToPath } from 'node:url'
 import { base58btc } from 'multiformats/bases/base58'
 
 const { Link, Bytes } = Constant
-export { Link, CBOR }
+export { Link, CBOR, Task }
 
 const instances = new WeakMap()
 
 /**
  * Represents an opaque database type with a methods corresponding to the
  * static functions exported by this module.
+ *
+ * @implements {API.Querier}
+ * @implements {API.Transactor<Commit>}
  */
 export class Database {
   /**
@@ -25,6 +28,20 @@ export class Database {
     const instance = new Database()
     instances.set(instance, tree)
     return instance
+  }
+
+  /**
+   * @param {API.FactsSelector} [selector]
+   */
+  scan(selector) {
+    return scan(this, selector)
+  }
+
+  /**
+   * @param {API.Transaction} instructions
+   */
+  transact(instructions) {
+    return transact(this, instructions)
   }
 }
 
@@ -62,17 +79,17 @@ const tree = (database) => instances.get(database)
  *
  * @param {URL} [url]
  * @param {import('@canvas-js/okra-lmdb').TreeOptions} [options]
- * @returns {Database}
  */
-export const open = (url, options) => {
-  if (!url || url.protocol === 'memory:') {
-    return Database.load(new Memory.Tree(options))
-  } else if (url?.protocol === 'file:') {
-    return Database.load(new LMDB.Tree(fileURLToPath(url), options))
-  } else {
-    throw new Error(`Unsupported protocol: ${url.protocol}`)
-  }
-}
+export const open = (url, options) =>
+  Task.spawn(function* () {
+    if (!url || url.protocol === 'memory:') {
+      return Database.load(new Memory.Tree(options))
+    } else if (url?.protocol === 'file:') {
+      return Database.load(new LMDB.Tree(fileURLToPath(url), options))
+    } else {
+      throw new Error(`Unsupported protocol: ${url.protocol}`)
+    }
+  })
 
 /**
  * Returns current revision of the database.
@@ -80,7 +97,7 @@ export const open = (url, options) => {
  * @param {Database} db
  */
 export const status = (db) =>
-  tree(db).read((reader) => new Revision(reader.getRoot()))
+  Task.wait(tree(db).read((reader) => new Revision(reader.getRoot())))
 
 /**
  * Closes the database instance. This is required to release filesystem lock
@@ -88,14 +105,7 @@ export const status = (db) =>
  *
  * @param {Database} db
  */
-export const close = (db) => tree(db).close()
-
-/**
- * Database fact with a causal link to a transaction from which this fact was
- * originated.
- *
- * @typedef {readonly [entity: API.Entity, attribute: API.Attribute, value:API.Constant, cause: API.Entity]} Datum
- */
+export const close = (db) => Task.wait(tree(db).close())
 
 /**
  * Scans the database for all the datums that match a given selector, which
@@ -103,30 +113,32 @@ export const close = (db) => tree(db).close()
  * return all the datums that match the selector.
  *
  * @param {Database} db
- * @param {API.FactsSelector} selector
- * @returns {Promise<Datum[]>}
+ * @param {API.FactsSelector} [selector]
+ * @returns {API.Task<API.Datum[], Error>}
  */
-export const scan = (db, { entity, attribute, value }) =>
-  tree(db).read((reader) => {
-    // Derives a search key path from the given selector. That will choose an
-    // appropriate index.
-    const path = deriveSearchPath({ entity, attribute, value })
-    // Converts path into a key prefix to search by.
-    const prefix = toSearchKey(path)
-    const entries = reader.entries(toLowerBound(prefix), toUpperBound(prefix))
+export const scan = (db, { entity, attribute, value } = {}) =>
+  Task.wait(
+    tree(db).read((reader) => {
+      // Derives a search key path from the given selector. That will choose an
+      // appropriate index.
+      const path = deriveSearchPath({ entity, attribute, value })
+      // Converts path into a key prefix to search by.
+      const prefix = toSearchKey(path)
+      const entries = reader.entries(toLowerBound(prefix), toUpperBound(prefix))
 
-    // When we know entity and value but not the attribute we have an atypical
-    // access pattern for which we do not have a dedicated index. In this case
-    // we use `EAVT` index to retrieve all datums for the entity and then filter
-    // out the ones that do not match the value.
-    return isCoarseSearch({ entity, attribute, value })
-      ? collectMatchingDatums(entries, path)
-      : collectDatums(entries)
-  })
+      // When we know entity and value but not the attribute we have an atypical
+      // access pattern for which we do not have a dedicated index. In this case
+      // we use `EAVT` index to retrieve all datums for the entity and then filter
+      // out the ones that do not match the value.
+      return isCoarseSearch({ entity, attribute, value })
+        ? collectMatchingDatums(entries, path)
+        : collectDatums(entries)
+    })
+  )
 
 /**
  * @param {IterableIterator<Okra.Entry>} entries
- * @returns
+ * @returns {API.Datum[]}
  */
 const collectDatums = (entries) => {
   const results = []
@@ -140,7 +152,7 @@ const collectDatums = (entries) => {
 /**
  * @param {IterableIterator<Okra.Entry>} entries
  * @param {SearchPath} path
- * @returns
+ * @returns {API.Datum[]}
  */
 const collectMatchingDatums = (
   entries,
@@ -288,63 +300,78 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
 }
 
 /**
- * @typedef {API.Variant<{ Assert: API.Fact, Retract: API.Fact }>} Instruction
+ * @typedef {object} Change
+ * @property {Uint8Array} origin
+ * @property {number} time
+ * @property {API.Transaction} transaction
+ *
  *
  * @param {Database} db
- * @param {Instruction[]} instructions
+ * @param {API.Transaction} instructions
+ * @returns {API.Task<Commit, Error>}
  */
-export const transact = (db, instructions) => {
-  return tree(db).write((writer) => {
-    const root = writer.getRoot()
-    const hash = root.hash
-    const time = Date.now()
+export const transact = (db, instructions) =>
+  Task.wait(
+    tree(db).write((writer) => {
+      const root = writer.getRoot()
+      const hash = root.hash
+      const time = Date.now()
 
-    const cause = {
-      origin: hash,
-      time,
-      transaction: instructions,
-    }
-    const tx = Link.of(cause)
-
-    /** @type {{Assert: API.Fact}[]} */
-    const assertions = [{ Assert: [tx, 'db/source', CBOR.encode(cause)] }]
-
-    for (const instruction of [...assertions, ...instructions]) {
-      if (instruction.Assert) {
-        const [entity, attribute, value] = instruction.Assert
-        const datum = [...instruction.Assert, tx]
-        const fact = CBOR.encode(datum)
-        const e = Link.toBytes(entity)
-        const a = CBOR.encode(attribute)
-        const v = Link.toBytes(Link.of(value))
-
-        writer.set(toSearchKey([EAVT, e, a, v]), fact)
-        writer.set(toSearchKey([AEVT, a, e, v]), fact)
-        writer.set(toSearchKey([VAET, v, a, e]), fact)
-      } else if (instruction.Retract) {
-        const [entity, attribute, value] = instruction.Retract
-        const e = Link.toBytes(entity)
-        const a = CBOR.encode(attribute)
-        const v = Link.toBytes(Link.of(value))
-
-        const key = toSearchKey([EAVT, e, a, v])
-        const entries = writer.entries(toLowerBound(key), toUpperBound(key))
-        for (const [key] of entries) {
-          writer.delete(key)
-        }
-        writer.delete(toSearchKey([EAVT, e, a, v]))
-        writer.delete(toSearchKey([AEVT, a, e, v]))
-        writer.delete(toSearchKey([VAET, v, a, e]))
+      /** @type {Change} */
+      const cause = {
+        origin: hash,
+        time,
+        transaction: instructions,
       }
-    }
+      const tx = Link.of(cause)
 
-    return {
-      before: new Revision(root),
-      after: new Revision(writer.getRoot()),
-      cause,
-    }
-  })
-}
+      /** @type {{Assert: API.Fact}[]} */
+      const assertions = [{ Assert: [tx, 'db/source', CBOR.encode(cause)] }]
+
+      for (const instruction of [...assertions, ...instructions]) {
+        if (instruction.Assert) {
+          const [entity, attribute, value] = instruction.Assert
+          const datum = [...instruction.Assert, tx]
+          const fact = CBOR.encode(datum)
+          const e = Link.toBytes(entity)
+          const a = CBOR.encode(attribute)
+          const v = Link.toBytes(Link.of(value))
+
+          writer.set(toSearchKey([EAVT, e, a, v]), fact)
+          writer.set(toSearchKey([AEVT, a, e, v]), fact)
+          writer.set(toSearchKey([VAET, v, a, e]), fact)
+        } else if (instruction.Retract) {
+          const [entity, attribute, value] = instruction.Retract
+          const e = Link.toBytes(entity)
+          const a = CBOR.encode(attribute)
+          const v = Link.toBytes(Link.of(value))
+
+          const key = toSearchKey([EAVT, e, a, v])
+          const entries = writer.entries(toLowerBound(key), toUpperBound(key))
+          for (const [key] of entries) {
+            writer.delete(key)
+          }
+          writer.delete(toSearchKey([EAVT, e, a, v]))
+          writer.delete(toSearchKey([AEVT, a, e, v]))
+          writer.delete(toSearchKey([VAET, v, a, e]))
+        }
+      }
+
+      return {
+        before: new Revision(root),
+        after: new Revision(writer.getRoot()),
+        cause,
+      }
+    })
+  )
+
+/**
+ *
+ * @typedef {object} Commit
+ * @property {Revision} before
+ * @property {Revision} after
+ * @property {Change} cause
+ */
 
 const EAVT = UTF8.toUTF8('EAVT')
 const AEVT = UTF8.toUTF8('AEVT')
