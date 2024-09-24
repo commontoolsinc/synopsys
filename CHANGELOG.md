@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Gozala/synopsys/compare/v1.1.0...v1.2.0) (2024-09-24)
+
+
+### Features
+
+* implement http interface ([aa29a96](https://github.com/Gozala/synopsys/commit/aa29a967db6abbf8ebe5472e0ab068365225c7e7))
+
 ## [1.1.0](https://github.com/Gozala/synopsys/compare/v1.0.0...v1.1.0) (2024-09-20)
 
 
