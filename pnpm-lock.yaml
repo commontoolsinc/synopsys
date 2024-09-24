@@ -30,7 +30,7 @@ importers:
         specifier: 22.5.5
         version: 22.5.5
       datalogia:
-        specifier: 0.7.0
+        specifier: ^0.7.0
         version: 0.7.0
       multiformats:
         specifier: ^13.3.0
