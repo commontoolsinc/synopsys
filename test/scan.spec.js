@@ -115,7 +115,6 @@ export const testScan = {
         /** @type {const} */ ([[bread, 'done', true, cause]])
       )
     }),
-
   'leaves EAVT entries with missmatched values': (assert) =>
     Task.spawn(function* () {
       const { db, cause, bread, list } = yield* loadTodo()
