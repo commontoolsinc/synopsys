@@ -50,14 +50,20 @@ const isVariable = (source) =>
 export const readSelect = function* (source, env) {
   if (source && typeof source === 'object') {
     if (Array.isArray(source)) {
-      const [variable] = source
-      if (isVariable(variable)) {
-        const vars = withVariable(env, variable)
+      const [member] = source
+      if (isVariable(member)) {
+        const vars = withVariable(env, member)
         return yield* Task.ok({
           /** @type {DB.API.Selector} */
-          select: [vars[variable]],
+          select: [vars[member]],
           env: vars,
         })
+      } else if (isObject(member)) {
+        const { select, env: vars } = yield* readSelect(member, env)
+        return {
+          select: [select],
+          env: vars,
+        }
       } else {
         return yield* Task.fail(
           new Error(`Invalid query selector ${JSON.stringify(source)}`)
@@ -77,7 +83,7 @@ export const readSelect = function* (source, env) {
         }
       }
 
-      return yield* Task.ok({ select: Object.fromEntries(entries), env: vars })
+      return { select: Object.fromEntries(entries), env: vars }
     }
   } else {
     return yield* Task.fail(
