@@ -117,8 +117,8 @@ export const close = (db) => Task.wait(tree(db).close())
  * @returns {API.Task<API.Datum[], Error>}
  */
 export const scan = (db, { entity, attribute, value } = {}) =>
-  Task.wait(
-    tree(db).read((reader) => {
+  Task.spawn(function* () {
+    const promise = tree(db).read((reader) => {
       // Derives a search key path from the given selector. That will choose an
       // appropriate index.
       const path = deriveSearchPath({ entity, attribute, value })
@@ -134,7 +134,11 @@ export const scan = (db, { entity, attribute, value } = {}) =>
         ? collectMatchingDatums(entries, path)
         : collectDatums(entries)
     })
-  )
+
+    const result = yield* Task.wait(promise)
+
+    return result
+  })
 
 /**
  * @param {IterableIterator<Okra.Entry>} entries
@@ -146,6 +150,7 @@ const collectDatums = (entries) => {
     const datum = CBOR.decode(value)
     results.push(datum)
   }
+
   return results
 }
 
