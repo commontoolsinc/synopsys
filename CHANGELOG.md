@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/commontoolsinc/synopsys/compare/v1.2.0...v1.3.0) (2024-09-25)
+
+
+### Features
+
+* implement graceful shutdown ([1a06ce5](https://github.com/commontoolsinc/synopsys/commit/1a06ce53f1c549bb52bca4842254f31a4a68bead))
+* implement graceful shutdown ([5fec00a](https://github.com/commontoolsinc/synopsys/commit/5fec00a7f2ba0dfa6ca26dfe57393b155fa9bf5e))
+
 ## [1.2.0](https://github.com/Gozala/synopsys/compare/v1.1.0...v1.2.0) (2024-09-24)
 
 
