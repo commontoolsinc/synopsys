@@ -22,6 +22,15 @@ export const open = function* (url) {
 }
 
 /**
+ * Closes down the service by closing the underlying store.
+ *
+ * @param {MutableSelf} self
+ */
+export const close = function* (self) {
+  yield* Store.close(self.source)
+}
+
+/**
  * @typedef {object} Self
  * @property {string} id - Current hash of the store.
  * @property {DB.API.Querier} source - The underlying data store.
