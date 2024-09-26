@@ -73,6 +73,9 @@ export const openSession = function* (self, request) {
         statusText: 'Invalid payload',
         headers: {
           'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
         },
       }
     )
@@ -99,6 +102,9 @@ export const openSession = function* (self, request) {
           statusText: 'Invalid query',
           headers: {
             'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+            'Access-Control-Allow-Headers': 'Content-Type',
           },
         }
       )
@@ -109,7 +115,15 @@ export const openSession = function* (self, request) {
   }
 
   // Redirect to the subscription URL.
-  return Response.redirect(new URL(`/${id}`, request.url), 303)
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: new URL(`/${id}`, request.url).toString(),
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
 }
 
 /**
@@ -133,6 +147,9 @@ export const publish = function* (self, request) {
         statusText: 'Invalid payload',
         headers: {
           'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
         },
       }
     )
@@ -154,6 +171,9 @@ export const publish = function* (self, request) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
         },
       }
     )
@@ -164,6 +184,12 @@ export const publish = function* (self, request) {
       }),
       {
         status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
       }
     )
   }
@@ -188,6 +214,9 @@ export const subscribe = function* (self, request) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
         },
       }
     )
@@ -211,6 +240,9 @@ export const subscribe = function* (self, request) {
         statusText: 'Subscription not found',
         headers: {
           'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+          'Access-Control-Allow-Headers': 'Content-Type',
         },
       }
     )
@@ -222,6 +254,9 @@ export const subscribe = function* (self, request) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+      'Access-Control-Allow-Headers': 'Content-Type',
     },
   })
 }
