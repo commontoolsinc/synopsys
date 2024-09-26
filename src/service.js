@@ -284,7 +284,6 @@ export const notify = function* (self) {
  * @param {DB.API.Transaction} instructions
  */
 export const transact = function* (self, instructions) {
-  console.log(JSON.stringify(instructions, null, 2))
   const commit = yield* DB.transact(self.source, instructions)
   if (commit.before.id !== commit.after.id) {
     self.id = commit.after.id
