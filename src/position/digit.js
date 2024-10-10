@@ -1,3 +1,7 @@
+import { EQUAL, CONSECUTIVE } from './digits.js'
+
+export { EQUAL, CONSECUTIVE }
+
 /**
  * @typedef {import('./base.js').Uint8} Uint8
  * @typedef {import('./base.js').Ranges} Ranges
@@ -75,6 +79,51 @@ export const decrement = (digit, ranges) => {
 }
 
 /**
+ * @param {Uint8} digit
+ * @param {Ranges} ranges
+ */
+export const roundUp = (digit, ranges) => {
+  for (const [low, high] of ranges) {
+    // If digit is below this range we just round it up to the the lower bound.
+    if (digit < low) {
+      return low
+    }
+    // If digit is less then high bound of the range it is within the range and
+    // we return it.
+    else if (digit <= high) {
+      return digit
+    }
+  }
+
+  return null
+}
+
+/**
+ * @param {Uint8} digit
+ * @param {Ranges} ranges
+ */
+export const roundDown = (digit, ranges) => {
+  let previous = null
+  for (const [low, high] of ranges) {
+    // If digit is less than or equal to the high bound of the range we round it
+    // down to the low bound of the range.
+    if (digit < low) {
+      if (previous) {
+        return previous
+      } else {
+        return null
+      }
+    } else if (digit <= high) {
+      return digit
+    } else {
+      previous = high
+    }
+  }
+
+  return previous
+}
+
+/**
  * Finds an intermediate digit between the given two with a constraint that
  * it fits passed ranges. Return positive value if the valid intermediate digit
  * exists, otherwise returns a negative of the average of the two digits to
@@ -83,65 +132,66 @@ export const decrement = (digit, ranges) => {
  * @param {Uint8} from - The first digit for the average calculation.
  * @param {Uint8} to - The second digit for the average calculation.
  * @param {Ranges} ranges - The ranges of valid digit values.
- * @returns {Uint8|OutOfBound}
+ * @returns {Uint8|EQUAL|CONSECUTIVE}
  */
 export const intermediate = (from, to, ranges) => {
-  const [low, high] = from > to ? [to, from] : [from, to]
-  // Calculate the average of the two digits.
-  const intermediate = Math.floor((from + to) / 2)
+  // Figure out which digit is lower and which one is higher.
+  const [bottom, top] = from > to ? [to, from] : [from, to]
 
-  // Ensure that the average digit is within the valid ranges.
-  for (const [at, [from, to]] of ranges.entries()) {
-    // If the average digit is below this range we attempt to round up to the
-    // smallest digit in this range. If that falls out of `low..high` bounds we
-    // attempt to round down to the upper bound of the previous range. If that
-    // falls out of bounds also we just return `-1 * average` signaling that no
-    // average can fit the constraints.
-    if (intermediate < from) {
-      const [, upper] = ranges[at - 1] ?? [, -1]
-      // Attempting to round up to the lower bound of the this range.
-      if (from > low && from < high) {
-        return from
+  // If the two digits are equal we return `EQUAL as there will be no
+  // intermediate value between the two.
+  if (bottom === top) {
+    return EQUAL
+  }
+  // If the delta between the two digits is 1 they are consecutive and we can
+  // not find an intermediate value between them either.
+  else if (top - bottom === 1) {
+    return CONSECUTIVE
+  }
+
+  // Otherwise way may have a chance for finding a consecutive digit.
+  const digit = Math.round((top + bottom) / 2)
+
+  let last = -1
+  // Intermediate digit may fall out of bounds however in which case we will
+  // want to round up or down to to fall into the recommended ranges.
+  for (const [low, high] of ranges) {
+    // If digit is below this range we attempt to round it up to the low bound
+    // of this range.
+    if (digit < low) {
+      // Attempting to round up to the `lower` bound of the this range.
+      if (bottom < low && low < top) {
+        return low
       }
-      // Attempt to round down to the upper bound of the last range.
-      else if (upper > low && upper < high) {
-        return upper
+      // If rounded up digit (low) falls outside the `bottom..top` range attempt
+      // to to round it down to the `last` bound of the previous range.
+      else if (bottom < last && last < high) {
+        return last
       }
-      // We will not be able to find a average that falls in our ranges. If the
-      // `upper === low` we return -low, that way caller can tell it does not
-      // satisfy the constraints, but often they would still use `low` as base
-      // and find average in the next segment.
-      else if (upper === low) {
-        return -low
-      }
-      // If rounding down missed the range we attempt the same with rounded up
-      // value.
-      else if (from === high) {
-        return -from
-      }
-      // If both rounding up and down falls out of the range that implies that
-      // both `from` and `to` were between ranges in which case we just return
-      // `-1 * average`. This is a signal that no valid average can be found,
-      // yet caller can still choose to use actual average.
+      // If rounding it up and rounding it down both fail we conclude that `from`
+      // and `to` ar consecutive and we return `CONSECUTIVE`. This could be the
+      // case if they are between two ranges or their bounds.
       else {
-        return -intermediate
+        return CONSECUTIVE
       }
     }
 
-    // If average is within this range we found it and we simply return.
-    if (intermediate >= from && intermediate <= to) {
-      return intermediate
+    // If digit is within the bounds of this range we return it.
+    if (low <= digit && digit <= high) {
+      return digit
     }
   }
 
-  // If got here `average` is greater than upper bound of our last range. We
-  // attempt to round it down to the upper bound of the last range. If that
-  // falls within `low..high` bounds we return it, otherwise our `low` is
-  // passed the upper bound of the last range and we return `-1 * average`.
-  const max = ranges[ranges.length - 1][1]
-  if (max > low && max < high) {
-    return max
-  } else {
-    return -intermediate
+  // If we got here digit must be greater than the upper bound of the last
+  // range. If so we do check if rounding it down to the upper bound of the last
+  // range would make it fall between `bottom` and `top`.
+  if (bottom < last && last < top) {
+    return last
+  }
+  // If last bound falls outside the `bottom..top` then both `from` and `to` are
+  // out of the range bounds and can be considered consecutive as all digits out
+  // of range are considered consecutive.
+  else {
+    return CONSECUTIVE
   }
 }

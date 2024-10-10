@@ -2,6 +2,8 @@ import * as Digit from './digit.js'
 import * as Minor from './minor.js'
 import { base58 as base } from './digits.js'
 
+import { EQUAL, CONSECUTIVE } from './digits.js'
+
 const [[outerNegative, innerNegative], [innerPositive, outerPositive]] =
   base.ranges
 
@@ -13,9 +15,10 @@ export const min = new Uint8Array([MIN, ...new Uint8Array(MIN).fill(Minor.MIN)])
 export const max = new Uint8Array([MAX, ...new Uint8Array(MAX).fill(Minor.MAX)])
 export const zero = () => innerPositive
 
+export { EQUAL, CONSECUTIVE }
+
 /**
  * @typedef {Digit.Uint8} Uint8
- * @typedef {Digit.OutOfBound} OutOfBound
  */
 
 /**
@@ -107,7 +110,7 @@ export const increment = (major) => {
  *
  * @param {Major} from
  * @param {Major} to
- * @returns {Major|Digit.OutOfBound}
+ * @returns {Major|EQUAL|CONSECUTIVE}
  */
 export const intermediate = (from, to) =>
   Digit.intermediate(from, to, base.ranges)

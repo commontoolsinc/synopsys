@@ -140,51 +140,51 @@ export const intermediate = (begin, end, ranges) => {
   const min = ranges[0][0] // Minimum value from the ranges
   const max = ranges[ranges.length - 1][1] // Maximum value from the ranges
 
+  // Allocate the byte array for to match the length of the longer out of the two.
+  const digits = new Uint8Array(Math.max(begin.length, end.length))
   // Copy the digits that are in common at the beginning.
-  const digits = []
   let offset = 0
-  while ((begin[offset] ?? min) === (end[offset] ?? min)) {
-    digits.push(begin[offset] ?? min)
-    offset++
+  while (offset < digits.length) {
+    const lower = begin[offset] ?? min
+    const upper = end[offset] ?? min
+    if (lower === upper) {
+      digits[offset] = lower
+      offset++
+    } else {
+      break
+    }
   }
 
-  // If we reached the end of the both digits they were equal and their average
-  // is the same as the either of two so we return null to signify that.
-  if (offset === begin.length && offset === end.length) {
+  // If we offset has reached the end begin and end are equal.
+  if (offset === digits.length) {
     return EQUAL
   }
 
-  // If digits aren't equal we determine which one is the greater.
-  const [smaller, greater] =
+  // Otherwise they aren't equal and we determine which one is the greater.
+  const [from, to] =
     (begin[offset] ?? min) < (end[offset] ?? min) ? [begin, end] : [end, begin]
 
-  // Next we will copy all the digits from the smaller until we find the average
-  // that falls between the smaller and greater.
-  let lower = smaller[offset] ?? min
-  let upper = greater[offset] ?? max
-  let average = Digit.intermediate(lower, upper, ranges)
-  while (average < 0) {
-    digits.push(lower)
+  // Next we will copy all low digits until we find non-consecutive digit between
+  // low and high.
+  while (offset < digits.length) {
+    const low = from[offset] ?? min
+    const high = to[offset] ?? max + 1
+    const digit = Digit.intermediate(low, high, ranges)
 
-    // Smaller might be shorter and all trailing are implicitly min values.
-    lower = smaller[++offset] ?? min
-    // Greater might be longer in which case we use max value in this base
-    // as an upper bound.
-    upper = greater[offset] ?? max
-
-    // Compute next average.
-    average = Digit.intermediate(lower, upper, ranges)
+    // If we can not find intermediate digit we store the lower digit and
+    // continue to the next digit.
+    if (digit === EQUAL || digit === CONSECUTIVE) {
+      digits[offset] = low
+      offset++
+    } else {
+      digits[offset] = digit
+      return digits.subarray(0, offset + 1)
+    }
   }
 
-  // If we found the `average` we can add it to the digits and return the result.
-  // otherwise there is no average between the two digits passed so we return
-  // null.
-  if (average >= 0) {
-    digits.push(average)
-    return new Uint8Array(digits)
-  } else {
-    return CONSECUTIVE
-  }
+  // If we filled the digits, but have not found a non-consecutive one we
+  // conclude that the given `begin` and `end` are consecutive.
+  return CONSECUTIVE
 }
 
 /**

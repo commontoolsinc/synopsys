@@ -1,32 +1,5 @@
 import * as Position from '../src/position/lib.js'
 
-/**
- * @type {[string, string][]}
- */
-const BASE_95_increments = [
-  ['a0', 'a1'],
-  ['a1', 'a2'],
-  ['a~', 'b'],
-  ['a0z', 'a0{'],
-  ['a0{', 'a0|'],
-  ['a0|', 'a0}'],
-  ['a0}', 'a0~'],
-  ['a0~', 'a1'],
-  ['b0z', 'b0{'],
-  ['b0~', 'b1'],
-  ['b1~', 'b2'],
-  ['b~~', 'c'],
-  ['Zy', 'Zz'],
-  ['Z~', '['],
-  ['`~', 'a'],
-  ['Yzy', 'Yzz'],
-  // ['Yzz', 'Z0'],
-  // ['Xyzz', 'Xz00'],
-  ['Xz00', 'Xz01'],
-  // ['Xzzz', 'Y00'],
-  // ['dABzz', 'dAC00'],
-]
-
 const after = [
   ['a', 'a1'], // trailing zeros are ignore
   ['_1', 'a'], // invalid range characters are skipped
@@ -89,6 +62,37 @@ const before = [
   ['Zz2', 'Zy'],
 ]
 
+export const insert = /** @type {const} */ ([
+  [, , 'a'],
+  [, 'a', 'Zz'],
+  ['a0', , 'a1'],
+  ['a0', 'a1', 'a0V'],
+  ['a0V', 'a1', 'a0i'],
+  ['Zz', 'a0', 'ZzV'],
+  ['Zz', 'a1', 'a'],
+  [, 'Y00', 'Xzzz'],
+  ['bzz', , 'c'],
+  ['a0', 'a0V', 'a0C'],
+  ['a0', 'a0G', 'a0A'],
+  ['b125', 'b129', 'b127'],
+  ['a0', 'a1V', 'a1'],
+  ['a0', 'a10', 'a0V'],
+  ['a0', 'a11', 'a1'],
+  ['Zz', 'a01', 'a'],
+  [, 'a0V', 'Zz'], // skip a because a0V could not have happened without `a`.
+  // [, 'a0V', 'a'],
+  [, 'b999', 'b98'], // b999 would not have happened without b99
+  // [, 'b999', 'b99'],
+  [, 'A00000000000000000000000000', 'A'],
+  [, 'A000000000000000000000000001', 'A'],
+  ['zzzzzzzzzzzzzzzzzzzzzzzzzzy', , 'zzzzzzzzzzzzzzzzzzzzzzzzzzz'],
+  ['zzzzzzzzzzzzzzzzzzzzzzzzzzz', , 'zzzzzzzzzzzzzzzzzzzzzzzzzzzV'],
+  ['a00', , 'a1'],
+  ['a00', 'a1', 'a0V'],
+  ['0', '1', '0V'],
+  // ['a1', 'a0', 'a1V'], // should error
+])
+
 const empty = new Uint8Array()
 
 /**
@@ -112,7 +116,7 @@ export const testDigits = {
         const actual = Position.insert(empty, { after: position })
 
         assert.ok(position <= actual, `${position} <= ${actual}`)
-        assert.equal(expect, actual)
+        assert.equal(actual, expect)
       },
     ])
   ),
@@ -124,7 +128,24 @@ export const testDigits = {
         const actual = Position.insert(empty, { before: position })
 
         assert.ok(position >= actual, `${position} >= ${actual}`)
-        assert.equal(expect, actual)
+        assert.equal(actual, expect)
+      },
+    ])
+  ),
+
+  ...Object.fromEntries(
+    insert.map(([after, before, expect]) => [
+      `Position.insert(null, { before: ${before}, after: ${after} })) => ${expect}`,
+      (assert) => {
+        const actual = Position.insert(empty, { after, before })
+
+        assert.equal(actual, expect)
+        if (before) {
+          assert.ok(actual <= before, `${actual} <= ${before}`)
+        }
+        if (after) {
+          assert.ok(actual >= after, `${actual} >= ${after}`)
+        }
       },
     ])
   ),

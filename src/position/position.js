@@ -1,11 +1,15 @@
 import * as Major from './major.js'
 import * as Minor from './minor.js'
 import * as Patch from './patch.js'
+import * as Digits from './digits.js'
 
 /**
- *
- * @param {Uint8Array} position
- * @param {Uint8Array} bias
+ * @typedef {Uint8Array & {Position?: {}}} Position
+ */
+
+/**
+ * @param {Position} position
+ * @param {Position} bias
  * @returns {Uint8Array}
  */
 export const withBias = (position, bias) => position
@@ -14,8 +18,9 @@ const BLANK = new Uint8Array()
 
 /**
  * @param {Major.Uint8} major
- * @param {Uint8Array} minor
- * @param {Uint8Array} patch
+ * @param {Minor.Minor} minor
+ * @param {Patch.Patch} patch
+ * @returns {Position}
  */
 const create = (major, minor = BLANK, patch = BLANK) => {
   // Remove trailing min values from patch component.
@@ -33,11 +38,14 @@ const create = (major, minor = BLANK, patch = BLANK) => {
 
 /**
  * @param {Uint8Array} bias
- * @param {Uint8Array} before
+ * @param {Position} position
+ * @returns {Position}
  */
-export const insertBefore = (bias, before) => {
-  const beforeMajor = Major.from(before)
-  const beforeMinor = Minor.from(before)
+export const before = (bias, position) => {
+  const beforeMajor = Major.from(position)
+  const beforeMinor = Minor.from(position)
+  const patch = Patch.decrement(Patch.from(position))
+
   // We attempt to decrement minor component first.
   const minor = Minor.decrement(beforeMinor)
   // If we have not run out of space for minor component we simply
@@ -61,7 +69,7 @@ export const insertBefore = (bias, before) => {
     // component and create a new position with the same major and minor.
     else {
       // Attempt to decrement patch component.
-      const patch = Patch.decrement(Patch.from(before))
+      const patch = Patch.decrement(Patch.from(position))
       // If we managed to decrement patch component we can create a new position
       // with the same major and minor components and decremented patch component.
       if (patch) {
@@ -71,7 +79,7 @@ export const insertBefore = (bias, before) => {
       // in the supported range that would sort before `before` position, therefore
       // we return the same `before` position.
       else {
-        return before
+        return Digits.trim(position, Minor.base.ranges)
       }
     }
   }
@@ -79,11 +87,12 @@ export const insertBefore = (bias, before) => {
 
 /**
  * @param {Uint8Array} bias
- * @param {Uint8Array} after
+ * @param {Position} position
+ * @returns {Position}
  */
-export const insertAfter = (bias, after) => {
-  const afterMajor = Major.from(after)
-  const afterMinor = Minor.from(after)
+export const after = (bias, position) => {
+  const afterMajor = Major.from(position)
+  const afterMinor = Minor.from(position)
   // We first attempt to increment minor component.
   const minor = Minor.increment(afterMinor)
   // If we have not run out of space for minor component we simply
@@ -107,7 +116,7 @@ export const insertAfter = (bias, after) => {
     else {
       // Note that patch can always increment because it simply resizes to
       // accommodate larger values.
-      const patch = Patch.increment(Patch.from(after))
+      const patch = Patch.increment(Patch.from(position))
       return withBias(create(afterMajor, afterMinor, patch), bias)
     }
   }
@@ -115,67 +124,85 @@ export const insertAfter = (bias, after) => {
 
 /**
  * @param {Uint8Array} bias
- * @param {Uint8Array} after
- * @param {Uint8Array} before
+ * @param {Position} low
+ * @param {Position} high
+ * @returns {Position}
  */
-export const insertBetween = (bias, after, before) => {
-  const afterMajor = Major.from(after)
-  const beforeMajor = Major.from(before)
-  const major = Major.intermediate(afterMajor, beforeMajor)
-  // If we found an intermediate major component we're done as that is only
-  // component we'll need.
-  if (major >= 0) {
-    return withBias(create(major), bias)
-  }
-  // If we could not find an intermediate major component then two are
-  // either consecutive or equal.
-  else {
-    const afterMinor = Minor.from(after)
-    // If majors are equal we need to find intermediate minor component between
-    // the two. If they are consecutive we can simply find an intermediate minor
-    // between the `after` and a maximum minor component.
-    const beforeMinor =
-      major === beforeMajor
-        ? Minor.from(before)
-        : Minor.max(Major.capacity(beforeMajor))
-    const minor = Minor.intermediate(afterMinor, beforeMinor)
-    switch (minor) {
-      // If minor components are equal, or consecutive we won't be able to
-      // calculate the average of minor components. In such case we will pick
-      // the minor component from `after`. And calculate the average between
-      // patches.
-      case Minor.EQUAL:
-      case Minor.CONSECUTIVE: {
-        const afterPatch = Patch.from(after)
-        const beforePatch =
-          // We use greater patch size in case low is all max values that
-          // will ensure that minor will not return `null`.
-          minor === Minor.CONSECUTIVE
-            ? Patch.max(afterPatch.length + 1)
-            : Patch.from(before)
-        const patch = Patch.intermediate(afterPatch, beforePatch)
-        // If `after` and `before` are the same there will be no intermediate
-        // patch value so we'll have no other choice than use the same `after`
-        // position.
-        if (patch == null) {
-          return after
+export const between = (bias, low, high) => {
+  const lowMajor = Major.from(low)
+  const highMajor = Major.from(high)
+  const lowMinor = Minor.from(low)
+  const highMinor = Minor.from(high)
+
+  // Attempt to find the intermediate major.
+  const major = Major.intermediate(lowMajor, highMajor)
+  switch (major) {
+    // When majors are equal we attempt to find intermediate minor.
+    case Major.EQUAL: {
+      const minor = Minor.intermediate(lowMinor, highMinor)
+      switch (minor) {
+        // When minors are also equal we look for intermediate patch.
+        case Minor.EQUAL: {
+          const patch = Patch.intermediate(Patch.from(low), Patch.from(high))
+          // If patches are also equal there is no `position` between `low` and
+          // `high` so we simply return `low` (`high` should be equal to `low`).
+          return patch ? withBias(create(lowMajor, lowMinor, patch), bias) : low
         }
-        // If `after` and `before` are consecutive we will find an intermediate
-        // patch that will sort between them. In such case we construct position
-        // with the same major and minor components and new consecutive patch
-        // component.
-        else {
-          return create(afterMajor, afterMinor, patch)
+        // When minors are consecutive we look for the next patch and create a
+        // position. Note that we can always find next patch because they are
+        // not bound in size.
+        case Minor.CONSECUTIVE: {
+          // If high has a patch then high without patch will be a more compact
+          // position between low and high.
+          let patch = Patch.decrement(Patch.from(high))
+          if (patch) {
+            return withBias(create(highMajor, highMinor), bias)
+          }
+
+          // If we could not trip the patch we could append to a patch in the
+          // low position
+          patch = Patch.next(Patch.from(low))
+          return withBias(create(lowMajor, lowMinor, patch), bias)
+        }
+        // When intermediate minor is found we construct new position with it.
+        default: {
+          return withBias(create(lowMajor, minor), bias)
         }
       }
-      // If minor components were not consecutive we'll find an intermediate
-      // minor component and will construct a new position with the same major
-      // and consecutive minor component. Patch component will be empty since
-      // new position will sort between `after` and `before` and we prefer
-      // compact positions over precisely middle ones.
-      default: {
-        return withBias(create(afterMajor, minor), bias)
+    }
+    // When majors are consecutive
+    case Major.CONSECUTIVE: {
+      // Attempt to increment low minor. However it may already have max
+      // value e.g. when `low` is `Zz`.
+      let minor = Minor.increment(lowMinor)
+      if (minor) {
+        return withBias(create(lowMajor, minor), bias)
       }
+
+      // If we can not increment `low` minor, we try to decrement `high` minor.
+      // However it may already have a min value e.g. when `high` is `a0`.
+      minor = Minor.decrement(highMinor)
+      if (minor) {
+        return withBias(create(highMajor, minor), bias)
+      }
+
+      // If high has a patch then high without patch will be a more compact
+      // position between low and high.
+      let patch = Patch.decrement(Patch.from(high))
+      if (patch) {
+        return withBias(create(highMajor, highMinor), bias)
+      }
+
+      // If we were not able to neither increment nor decrement we resort to
+      // increasing a `low` patch. That always works because patches aren't
+      // fixed in size so we can always find a next one.
+      patch = Patch.next(Patch.from(low))
+      return withBias(create(lowMajor, lowMinor, patch), bias)
+    }
+    // When intermediate major is found we construct new position with just a
+    // major.
+    default: {
+      return withBias(create(major), bias)
     }
   }
 }
@@ -183,16 +210,16 @@ export const insertBetween = (bias, after, before) => {
 /**
  * @param {Uint8Array} bias
  * @param {object} at
- * @param {Uint8Array} [at.after]
- * @param {Uint8Array} [at.before]
+ * @param {Position} [at.after]
+ * @param {Position} [at.before]
  */
-export const insert = (bias, { after, before }) => {
-  if (before != null && after != null) {
-    return insertBetween(bias, after, before)
-  } else if (before != null) {
-    return insertBefore(bias, before)
-  } else if (after != null) {
-    return insertAfter(bias, after)
+export const insert = (bias, at = {}) => {
+  if (at.before != null && at.after != null) {
+    return between(bias, at.after, at.before)
+  } else if (at.before != null) {
+    return before(bias, at.before)
+  } else if (at.after != null) {
+    return after(bias, at.after)
   } else {
     // We do not need to specify minor part because 0s are implicit.
     return create(Major.zero())

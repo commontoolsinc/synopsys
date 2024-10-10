@@ -9,12 +9,16 @@ export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
 export const MAX = base.max
 
 /**
- * @param {Uint8Array} minor
+ * @typedef {Uint8Array & {Minor?: {}}} Minor
+ */
+
+/**
+ * @param {Minor} minor
  */
 export const decrement = (minor) => Digits.decrement(minor, base.ranges)
 
 /**
- * @param {Uint8Array} minor
+ * @param {Minor} minor
  */
 export const increment = (minor) => Digits.increment(minor, base.ranges)
 
@@ -38,12 +42,12 @@ export const from = (position) => {
 
 /**
  *
- * @param {Uint8Array} lower
- * @param {Uint8Array} upper
+ * @param {Minor} low
+ * @param {Minor} high
  * @returns
  */
-export const intermediate = (lower, upper) =>
-  Digits.intermediate(lower, upper, base.ranges)
+export const intermediate = (low, high) =>
+  Digits.intermediate(low, high, base.ranges)
 
 /**
  * @param {number} size
@@ -51,6 +55,11 @@ export const intermediate = (lower, upper) =>
 export const max = (size) => new Uint8Array(size).fill(base.max)
 
 /**
- * @param {Uint8Array} minor
+ *
+ * @param {number} size
+ */
+export const min = (size) => new Uint8Array(size).fill(base.min)
+/**
+ * @param {Minor} minor
  */
 export const trim = (minor) => Digits.trim(minor, base.ranges)
