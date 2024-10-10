@@ -209,3 +209,36 @@ export const trim = (digits, ranges) => {
     ? digits
     : new Uint8Array(digits.buffer, digits.byteOffset, length)
 }
+
+const BYTE_SIZE = 256 // The number of unique values a byte can represent.
+
+/**
+ * Converts a byte array to an digit array in a given base.
+ *
+ * @param {Uint8Array} bytes
+ * @param {Base.Base} base
+ */
+export const toBase = (bytes, base) => {
+  let digits = []
+  let carry = 0
+  while (bytes.length > 0) {
+    let remainder = []
+    carry = 0
+    // Process each byte in the input array.
+    for (let byte of bytes) {
+      let acc = byte + carry * BYTE_SIZE
+      carry = acc % base.codes.length
+      // Unshift the quotient to the remainder array to avoid reversing later.
+      remainder.unshift(Math.floor(acc / base.codes.length))
+    }
+    // Unshift the carry value to the baseValues array.
+    digits.unshift(base.codes[carry])
+    // Remove leading zeros from the remainder array.
+    while (remainder.length > 0 && remainder[0] === 0) {
+      remainder.shift()
+    }
+    bytes = Uint8Array.from(remainder)
+  }
+
+  return new Uint8Array(digits)
+}
