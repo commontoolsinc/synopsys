@@ -99,16 +99,6 @@ const empty = new Uint8Array()
  * @type {import('entail').Suite}
  */
 export const testDigits = {
-  // ...Object.fromEntries(
-  //   BASE_95_increments.map(([digits, consequent]) => [
-  //     `base95.increment(${digits}) => ${consequent}`,
-  //     (assert) => {
-  //       const actual = Digits.increment(Digits.fromString(digits))
-  //       const expect = Digits.fromString(consequent)
-  //       assert.equal(actual.toString(), expect.toString())
-  //     },
-  //   ])
-  // ),
   ...Object.fromEntries(
     after.map(([position, expect]) => [
       `Position.insert(null, { after: "${position}" })) => ${expect}`,

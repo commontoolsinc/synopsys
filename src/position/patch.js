@@ -1,7 +1,11 @@
 import * as Digits from './digits.js'
 import * as Major from './major.js'
+import * as Base from './base.js'
 export const { CONSECUTIVE, EQUAL } = Digits
 export const { base62: base } = Digits
+
+export const MIN = Base.min(base)
+export const MAX = Base.max(base)
 
 export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
 
@@ -19,12 +23,12 @@ export const from = (position) =>
 /**
  * @returns {Patch}
  */
-export const max = () => new Uint8Array([base.max + 1])
+export const max = () => new Uint8Array([MAX + 1])
 
 /**
  * @returns {Patch}
  */
-export const min = () => new Uint8Array([base.min - 1])
+export const min = () => new Uint8Array([MIN - 1])
 
 /**
  * Returns an intermediate patch value that would sort between `lower` and
@@ -71,7 +75,7 @@ const increase = (digits) => {
  */
 const decrease = (digits) => {
   let offset = digits.length - 1
-  while (offset > 0 && digits[offset] === base.min) {
+  while (offset > 0 && digits[offset] === MIN) {
     offset--
   }
 

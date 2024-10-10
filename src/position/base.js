@@ -9,8 +9,14 @@
  */
 
 /**
+ * @typedef Base
+ * @property {Uint8[]} codes
+ * @property {Ranges} ranges
+ */
+/**
  * Parses a base description string and generates an ordered list of [from, to] ranges.
  * @param {string} descriptor - A string containing all characters in the base.
+ * @returns {Base}
  */
 export const parse = (descriptor) => {
   // Sort the characters in ascending order of their character codes.
@@ -42,10 +48,20 @@ export const parse = (descriptor) => {
   ranges.push([startCharCode, endCharCode])
 
   return {
-    min: ranges[0][0],
-    max: ranges[ranges.length - 1][1],
     codes,
     /** @type {Ranges} */
     ranges: /** @type {[Range, ...Range[]]} */ (ranges),
   }
 }
+
+/**
+ * @param {Base} base
+ * @returns {Uint8}
+ */
+export const min = ({ codes }) => codes[0]
+
+/**
+ * @param {Base} base
+ * @returns {Uint8}
+ */
+export const max = ({ codes }) => codes[codes.length - 1]

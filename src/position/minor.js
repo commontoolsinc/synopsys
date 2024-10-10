@@ -1,12 +1,12 @@
 import * as Digits from './digits.js'
+import * as Base from './base.js'
 export { EQUAL, CONSECUTIVE } from './digits.js'
 import * as Major from './major.js'
 export const { base62: base } = Digits
 
-export const MIN = base.min
-
+export const MIN = Base.min(base)
+export const MAX = Base.max(base)
 export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
-export const MAX = base.max
 
 /**
  * @typedef {Uint8Array & {Minor?: {}}} Minor
@@ -33,7 +33,7 @@ export const from = (position) => {
   // values so that operations on digits will not make wrong assumptions about
   // the size.
   if (slice.length < length) {
-    const minor = new Uint8Array(length).fill(base.min)
+    const minor = new Uint8Array(length).fill(MIN)
     minor.set(slice)
     return minor
   }
@@ -52,13 +52,13 @@ export const intermediate = (low, high) =>
 /**
  * @param {number} size
  */
-export const max = (size) => new Uint8Array(size).fill(base.max)
+export const max = (size) => new Uint8Array(size).fill(MAX)
 
 /**
  *
  * @param {number} size
  */
-export const min = (size) => new Uint8Array(size).fill(base.min)
+export const min = (size) => new Uint8Array(size).fill(MIN)
 /**
  * @param {Minor} minor
  */

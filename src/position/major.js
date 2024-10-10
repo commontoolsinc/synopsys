@@ -1,6 +1,7 @@
 import * as Digit from './digit.js'
 import * as Minor from './minor.js'
 import { base58 as base } from './digits.js'
+import * as Base from './base.js'
 
 import { EQUAL, CONSECUTIVE } from './digits.js'
 
@@ -8,8 +9,8 @@ const [[outerNegative, innerNegative], [innerPositive, outerPositive]] =
   base.ranges
 
 export { base }
-export const MIN = base.min
-export const MAX = base.max
+export const MIN = Base.min(base)
+export const MAX = Base.max(base)
 
 export const min = new Uint8Array([MIN, ...new Uint8Array(MIN).fill(Minor.MIN)])
 export const max = new Uint8Array([MAX, ...new Uint8Array(MAX).fill(Minor.MAX)])

@@ -44,7 +44,6 @@ const create = (major, minor = BLANK, patch = BLANK) => {
 export const before = (bias, position) => {
   const beforeMajor = Major.from(position)
   const beforeMinor = Minor.from(position)
-  const patch = Patch.decrement(Patch.from(position))
 
   // We attempt to decrement minor component first.
   const minor = Minor.decrement(beforeMinor)
