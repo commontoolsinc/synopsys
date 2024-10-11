@@ -1,6 +1,7 @@
 import * as Digit from './digit.js'
+import * as Digits from './digits.js'
 import * as Minor from './minor.js'
-import { base58 as base } from './digits.js'
+import { base52 as base } from './digits.js'
 import * as Base from './base.js'
 
 import { EQUAL, CONSECUTIVE } from './digits.js'
@@ -17,10 +18,6 @@ export const max = new Uint8Array([MAX, ...new Uint8Array(MAX).fill(Minor.MAX)])
 export const zero = () => innerPositive
 
 export { EQUAL, CONSECUTIVE }
-
-/**
- * @typedef {Digit.Uint8} Uint8
- */
 
 /**
  * Major byte describes the size range of the minor positions. It highly
@@ -41,7 +38,7 @@ export { EQUAL, CONSECUTIVE }
  * that insertions outside of recommended range would not be able to take
  * advantage of producing small positions.
  *
- * @typedef {Digit.Uint8 & {Major?:{}}} Major
+ * @typedef {Digits.B52} Major
  */
 
 /**
@@ -80,7 +77,7 @@ export const decrement = (major) => {
   if (digit < 0) {
     return null
   } else {
-    return digit
+    return /** @type {Major} */ (digit)
   }
 }
 
@@ -103,7 +100,7 @@ export const increment = (major) => {
   if (digit < 0) {
     return null
   } else {
-    return digit
+    return /** @type {Major} */ (digit)
   }
 }
 
@@ -117,7 +114,7 @@ export const intermediate = (from, to) =>
   Digit.intermediate(from, to, base.ranges)
 
 /**
- * @param {Uint8Array} position
- * @returns {Digit.Uint8}
+ * @param {import('./position.js').Position} position
+ * @returns {Major}
  */
 export const from = (position) => position[0]

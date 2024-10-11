@@ -4,7 +4,7 @@ import * as Patch from './patch.js'
 import * as Digits from './digits.js'
 
 /**
- * @typedef {Uint8Array & {Position?: {}}} Position
+ * @typedef {Digits.Digits<Digits.B62>} Position
  */
 
 /**
@@ -14,10 +14,10 @@ import * as Digits from './digits.js'
  */
 export const withBias = (position, bias) => position
 
-const BLANK = new Uint8Array()
+const BLANK = /** @type {Patch.Patch} */ (new Uint8Array())
 
 /**
- * @param {Major.Uint8} major
+ * @param {Major.Major} major
  * @param {Minor.Minor} minor
  * @param {Patch.Patch} patch
  * @returns {Position}
@@ -33,7 +33,7 @@ const create = (major, minor = BLANK, patch = BLANK) => {
   position.set(minor, 1)
   position.set(patch, 1 + minor.length)
 
-  return position
+  return /** @type {Position} */ (position)
 }
 
 /**
@@ -98,7 +98,7 @@ export const after = (bias, position) => {
   // need to create position with the same major component and incremented
   // minor component.
   if (minor) {
-    return withBias(create(afterMajor, minor), bias)
+    return create(afterMajor, minor, bias)
   }
   // However minor component may be at max value.
   else {
@@ -108,7 +108,7 @@ export const after = (bias, position) => {
     // with it and leave out minor and patch components which implicitly will
     // be at their minimum values.
     if (major) {
-      return withBias(create(major), bias)
+      return create(major, Minor.min(Major.capacity(major)), bias)
     }
     // However we are at max major our only option left is to increment patch
     // component and create a new position with the same major and minor.
@@ -142,7 +142,11 @@ export const between = (bias, low, high) => {
       switch (minor) {
         // When minors are also equal we look for intermediate patch.
         case Minor.EQUAL: {
-          const patch = Patch.intermediate(Patch.from(low), Patch.from(high))
+          const patch = Patch.intermediate(
+            Patch.from(low),
+            Patch.from(high),
+            bias
+          )
           // If patches are also equal there is no `position` between `low` and
           // `high` so we simply return `low` (`high` should be equal to `low`).
           return patch ? withBias(create(lowMajor, lowMinor, patch), bias) : low

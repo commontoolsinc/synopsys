@@ -6,7 +6,7 @@ export const { base62: base } = Digits
 
 export const MIN = Base.min(base)
 export const MAX = Base.max(base)
-export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
+export const MEDIAN = Base.median(base)
 
 /**
  * @typedef {Uint8Array & {Minor?: {}}} Minor

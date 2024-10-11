@@ -1,24 +1,48 @@
 import * as Digit from './digit.js'
 import * as Base from './base.js'
+import { CONSECUTIVE, EQUAL } from './digit.js'
+export { toBase } from './base.js'
+
+export { CONSECUTIVE, EQUAL } from './digit.js'
 
 /**
+ * Type signifying a unsigned 8-bit integer.
+ *
  * @typedef {import('./base.js').Uint8} Uint8
+ */
+
+/**
+ * Type signifying a digit in the base62 character set.
+ * @typedef {Uint8 & {Base64?:{}}} B62
+ */
+
+/**
+ * Type signifying a digits in the base52 character set.
+ * @typedef {Uint8 & {Base52?:{}}} B52
+ */
+
+/**
+ * @template {Uint8} [T=Uint8]
+ * @typedef {Uint8Array & {[key: number]: T}} Digits
  */
 
 /**
  * These are the supported major zones when incrementing digit between the
  * zones it will produce a digit in the next zone.
  */
+/** @type {Base.Base<B62>} */
 export const base62 = Base.parse(
-  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+  '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  // '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 )
 
-export const base58 = Base.parse(
+/** @type {Base.Base<B52>} */
+export const base52 = Base.parse(
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 )
 
 /**
- * @param {Uint8Array} source
+ * @param {Digits} source
  */
 export const toString = (source) => new TextDecoder().decode(source)
 
@@ -28,7 +52,7 @@ export const toString = (source) => new TextDecoder().decode(source)
 export const fromString = (source) => new TextEncoder().encode(source)
 
 /**
- * @param {ArrayLike<number>} source
+ * @param {ArrayLike<Uint8>} source
  */
 export const fromArray = (source) => {
   const major = new Uint8Array(source.length)
@@ -44,8 +68,10 @@ export const fromArray = (source) => {
  * or return null if it is not possible to increment the number further with in
  * the current byte array capacity.
  *
- * @param {Uint8Array} source
+ * @template {Digits<Uint8>} [T=Digits<Uint8>]
+ * @param {T} source
  * @param {Base.Ranges} base
+ * @returns {T|null}
  */
 export const increment = (source, base) => {
   // Create a new Digits instance to avoid mutating the original one.
@@ -62,7 +88,7 @@ export const increment = (source, base) => {
     } else {
       // Otherwise, no carry, so we can break the loop early.
       digits[i] = digit
-      return digits
+      return /** @type {T} */ (digits)
     }
   }
 
@@ -70,19 +96,6 @@ export const increment = (source, base) => {
   // further as we are at the maximum capacity in this byte array. It such case
   // we return null letting the caller know that incrementing is not possible.
   return null
-  // // If we have not returned from the loop we still have to increment. In such
-  // // case, we need to add a new digit to the end of the byte array to increase
-  // // it's fraction.
-  // let newDigits = new Uint8Array(digits.length + 1)
-  // newDigits.set(digits) // Copies digits into newDigits.
-  // newDigits[digits.length] = source.base[0][0] // Set the new digit to the minimum value in its range.
-
-  // return Digits.new(
-  //   newDigits.buffer,
-  //   newDigits.byteOffset,
-  //   newDigits.length,
-  //   source.base
-  // )
 }
 
 /**
@@ -93,9 +106,10 @@ export const increment = (source, base) => {
  * or return null if it is not possible to decrement the number further with the
  * current byte array capacity.
  *
- * @param {Uint8Array} source
+ * @template {Digits<Uint8>} [T=Digits<Uint8>]
+ * @param {T} source
  * @param {Base.Ranges} base
- * @returns {Uint8Array|null} The decremented digits as a byte array, or null if decrementing was not possible.
+ * @returns {T|null} The decremented digits as a byte array, or null if decrementing was not possible.
  */
 export const decrement = (source, base) => {
   // Create a new Uint8Array instance to avoid mutating the original one.
@@ -112,7 +126,7 @@ export const decrement = (source, base) => {
     } else {
       // Otherwise, no "borrow", so we can break the loop early.
       digits[i] = digit
-      return digits
+      return /** @type {T} */ (digits)
     }
   }
 
@@ -122,9 +136,6 @@ export const decrement = (source, base) => {
   return null
 }
 
-export const EQUAL = Symbol.for('EQUAL')
-export const CONSECUTIVE = Symbol.for('CONSECUTIVE')
-
 /**
  * Computes an average between two digits that would fit given ranges. If both
  * digits are equal or consecutive it will not be able to derive an average and
@@ -132,19 +143,23 @@ export const CONSECUTIVE = Symbol.for('CONSECUTIVE')
  * digit. Returned digit may be shorter than the input digits because trailing
  * `min` values are implied.
  *
- * @param {Uint8Array} begin
- * @param {Uint8Array} end
+ * @template {Digits<Uint8>} [T=Digits<Uint8>]
+ * @param {T} begin
+ * @param {T} end
  * @param {Base.Ranges} ranges - The ranges of valid digit values.
+ * @returns {T|EQUAL|CONSECUTIVE}
  */
 export const intermediate = (begin, end, ranges) => {
   const min = ranges[0][0] // Minimum value from the ranges
   const max = ranges[ranges.length - 1][1] // Maximum value from the ranges
 
-  // Allocate the byte array for to match the length of the longer out of the two.
+  // Allocate the byte array in size of the longer boundary.
   const digits = new Uint8Array(Math.max(begin.length, end.length))
   // Copy the digits that are in common at the beginning.
   let offset = 0
   while (offset < digits.length) {
+    // Digits can be trimmed to omit trailing min values, which is why we
+    // implicitly assume min value when the digit is not present.
     const lower = begin[offset] ?? min
     const upper = end[offset] ?? min
     if (lower === upper) {
@@ -155,12 +170,13 @@ export const intermediate = (begin, end, ranges) => {
     }
   }
 
-  // If we offset has reached the end begin and end are equal.
+  // If we offset has reached the end begin boundaries are equal.
   if (offset === digits.length) {
     return EQUAL
   }
 
-  // Otherwise they aren't equal and we determine which one is the greater.
+  // Otherwise they aren't equal and we determine which one is the greater
+  // just in case begin and end are in reverse order.
   const [from, to] =
     (begin[offset] ?? min) < (end[offset] ?? min) ? [begin, end] : [end, begin]
 
@@ -176,9 +192,14 @@ export const intermediate = (begin, end, ranges) => {
     if (digit === EQUAL || digit === CONSECUTIVE) {
       digits[offset] = low
       offset++
-    } else {
+    }
+    // If we do find a non-consecutive digit we store it and return only
+    // the slice of the digits that we have filled. We do not need to find
+    // the intermediate digit for the rest of the digits as position will
+    // fall in range and will be shorter this way.
+    else {
       digits[offset] = digit
-      return digits.subarray(0, offset + 1)
+      return /** @type {T} */ (digits.subarray(0, offset + 1))
     }
   }
 
@@ -190,9 +211,10 @@ export const intermediate = (begin, end, ranges) => {
 /**
  * Removes trailing min values from the given digits.
  *
- * @param {Uint8Array} digits
+ * @template {Digits<Uint8>} [T=Digits<Uint8>]
+ * @param {T} digits
  * @param {Base.Ranges} ranges - The ranges of valid digit values.
- * @returns {Uint8Array}
+ * @returns {T}
  */
 export const trim = (digits, ranges) => {
   const min = ranges[0][0] // Minimum value from the ranges
@@ -207,38 +229,7 @@ export const trim = (digits, ranges) => {
 
   return length === digits.length
     ? digits
-    : new Uint8Array(digits.buffer, digits.byteOffset, length)
-}
-
-const BYTE_SIZE = 256 // The number of unique values a byte can represent.
-
-/**
- * Converts a byte array to an digit array in a given base.
- *
- * @param {Uint8Array} bytes
- * @param {Base.Base} base
- */
-export const toBase = (bytes, base) => {
-  let digits = []
-  let carry = 0
-  while (bytes.length > 0) {
-    let remainder = []
-    carry = 0
-    // Process each byte in the input array.
-    for (let byte of bytes) {
-      let acc = byte + carry * BYTE_SIZE
-      carry = acc % base.codes.length
-      // Unshift the quotient to the remainder array to avoid reversing later.
-      remainder.unshift(Math.floor(acc / base.codes.length))
-    }
-    // Unshift the carry value to the baseValues array.
-    digits.unshift(base.codes[carry])
-    // Remove leading zeros from the remainder array.
-    while (remainder.length > 0 && remainder[0] === 0) {
-      remainder.shift()
-    }
-    bytes = Uint8Array.from(remainder)
-  }
-
-  return new Uint8Array(digits)
+    : /** @type {T} */ (
+        new Uint8Array(digits.buffer, digits.byteOffset, length)
+      )
 }

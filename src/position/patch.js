@@ -7,10 +7,16 @@ export const { base62: base } = Digits
 export const MIN = Base.min(base)
 export const MAX = Base.max(base)
 
-export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
+export const MEDIAN = Base.median(base)
 
 /**
- * @typedef {Uint8Array & {Patch?: {}}} Patch
+ * Type signifying a digits in the base64 character set representing a patch
+ * component of the position.
+ *
+ * @typedef {Digits.Digits<Digits.B62>} Patch
+ */
+/**
+ * @typedef {Digits.Digits<Digits.B62>} Bias
  */
 
 /**
@@ -18,7 +24,9 @@ export const MEDIAN = base.codes[(base.codes.length / 2) | 0]
  * @returns {Patch}
  */
 export const from = (position) =>
-  position.subarray(Major.capacity(Major.from(position)) + 1)
+  /** @type {Patch} */ (
+    position.subarray(Major.capacity(Major.from(position)) + 1)
+  )
 
 /**
  * @returns {Patch}
@@ -30,6 +38,8 @@ export const max = () => new Uint8Array([MAX + 1])
  */
 export const min = () => new Uint8Array([MIN - 1])
 
+const median = new Uint8Array([MEDIAN])
+
 /**
  * Returns an intermediate patch value that would sort between `lower` and
  * `upper`. Since patches are treated as fractions they can grow in size
@@ -38,16 +48,42 @@ export const min = () => new Uint8Array([MIN - 1])
  *
  * @param {Patch} low
  * @param {Patch} high
+ * @param {Bias} bias
  * @returns {Patch|null}
  */
-export const intermediate = (low, high) => {
+export const intermediate = (low, high, bias) => {
   const digits = Digits.intermediate(low, high, base.ranges)
-  // If lower and upper are consecutive, we can derive average by adding
-  // another digit to the `lower` position. This would make it
-  if (digits === Digits.CONSECUTIVE) {
-    return increase(low)
-  } else {
-    return digits == Digits.EQUAL ? null : digits
+  switch (digits) {
+    case Digits.EQUAL:
+      return null
+    case Digits.CONSECUTIVE:
+      // If lower and upper are consecutive, we can derive average by
+      // appending bias to the `lower` position. This will ensure that
+      // the patch is always greater than the `lower` and less than the
+      // `upper` position. However if bias is not provided we may end up
+      // with a patch that is equal to the `lower` position which is why
+      // we append `median` in such case.
+      return append(low, bias.length > 0 ? bias : median)
+    default: {
+      const head = bias[0]
+      // If bias is empty we can return the intermediate digits as is.
+      if (head == null) {
+        return digits
+      }
+
+      // Otherwise we will adjust an intermediate digits with the bias.
+      // If we have an intermediate position, only it's last digit will be
+      // between `low` and `high` digits at the same offset.
+      const offset = digits.length - 1
+      // If head of the bias fits between the low and high digits we can
+      // override tie breaking digit.
+      const delta = low[offset] < head && head < high[offset] ? 1 : 0
+
+      const patch = new Uint8Array(digits.length + bias.length - delta)
+      patch.set(digits)
+      patch.set(bias, digits.length - delta)
+      return patch
+    }
   }
 }
 
@@ -56,16 +92,17 @@ export const intermediate = (low, high) => {
  */
 export const next = (digits) =>
   // We know it will never be equal because we pass the max value.
-  /** @type {Patch} */ (intermediate(digits, max()))
+  /** @type {Patch} */ (intermediate(digits, max(), new Uint8Array([])))
 
 /**
  * @param {Patch} digits
+ * @param {Patch} extra
  * @returns {Patch}
  */
-const increase = (digits) => {
-  const patch = new Uint8Array(digits.length + 1)
+const append = (digits, extra) => {
+  const patch = new Uint8Array(digits.length + extra.length)
   patch.set(digits)
-  patch[digits.length] = MEDIAN
+  patch.set(extra, digits.length)
   return patch
 }
 
@@ -92,7 +129,7 @@ const decrease = (digits) => {
  * @returns {Patch}
  */
 export const increment = (digits) =>
-  Digits.increment(digits, base.ranges) ?? increase(digits)
+  Digits.increment(digits, base.ranges) ?? append(digits, median)
 
 /**
  * @param {Patch} digits

@@ -139,4 +139,36 @@ export const testDigits = {
       },
     ])
   ),
+
+  'test bias': (assert) => {
+    assert.equal(
+      Position.insert(new Uint8Array(), { after: 'a' }),
+      'a1',
+      'no fractional without a bias'
+    )
+
+    assert.equal(
+      Position.insert(new Uint8Array([5]), { after: 'a' }),
+      'a15',
+      'gets fraction with a bias'
+    )
+
+    assert.equal(
+      Position.insert(new Uint8Array([255, 200]), { after: 'a' }),
+      'a1h28',
+      'gets fraction with a bias'
+    )
+
+    assert.equal(
+      Position.insert(new Uint8Array([7, 255, 200]), { after: 'a' }),
+      'a12cnm',
+      'gets fraction with a bias'
+    )
+
+    assert.equal(
+      Position.insert(new Uint8Array([7, 255, 200, 4, 2]), { after: 'a' }),
+      'a1Bv4z5g',
+      'gets fraction with a bias'
+    )
+  },
 }

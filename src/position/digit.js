@@ -1,9 +1,8 @@
-import { EQUAL, CONSECUTIVE } from './digits.js'
-
-export { EQUAL, CONSECUTIVE }
+import * as Base from './base.js'
+export const EQUAL = Symbol.for('EQUAL')
+export const CONSECUTIVE = Symbol.for('CONSECUTIVE')
 
 /**
- * @typedef {import('./base.js').Uint8} Uint8
  * @typedef {import('./base.js').Ranges} Ranges
  */
 
@@ -20,9 +19,10 @@ export { EQUAL, CONSECUTIVE }
  * digit in the next range. If incremented digit falls out of bounds it will
  * return `OutOfBound`.
  *
- * @param {Uint8} digit - The digit to increment.
- * @param {Ranges} ranges - The ranges of valid digit values.
- * @returns {Uint8|OutOfBound} The incremented digit, or -1 if the digit falls out of bounds.
+ * @template {Base.Uint8} [Digit=Base.Uint8]
+ * @param {Digit} digit - The digit to increment.
+ * @param {Base.Ranges<Digit>} ranges - The ranges of valid digit values.
+ * @returns {Digit|OutOfBound} The incremented digit, or -1 if the digit falls out of bounds.
  */
 export const increment = (digit, ranges) => {
   const subsequent = digit + 1
@@ -52,9 +52,10 @@ export const increment = (digit, ranges) => {
  * previous range. If the decremented digit falls out of bounds it will return
  * -
  *
- * @param {Uint8} digit - The digit to decrement.
- * @param {Ranges} ranges - The ranges of valid digit values.
- * @returns {Uint8|OutOfBound} The decremented digit, or -1 if digit falls out of bounds.
+ * @template {Base.Uint8} [Digit=Base.Uint8]
+ * @param {Digit} digit - The digit to decrement.
+ * @param {Base.Ranges<Digit>} ranges - The ranges of valid digit values.
+ * @returns {Digit|OutOfBound} The decremented digit, or -1 if digit falls out of bounds.
  */
 export const decrement = (digit, ranges) => {
   const subsequent = digit - 1
@@ -79,10 +80,12 @@ export const decrement = (digit, ranges) => {
 }
 
 /**
- * @param {Uint8} digit
- * @param {Ranges} ranges
+ * @template {Base.Uint8} [Digit=Base.Uint8]
+ * @param {Digit} digit
+ * @param {Base.Ranges<Digit>} ranges
+ * @returns {Digit|null}
  */
-export const roundUp = (digit, ranges) => {
+export const round = (digit, ranges) => {
   for (const [low, high] of ranges) {
     // If digit is below this range we just round it up to the the lower bound.
     if (digit < low) {
@@ -99,8 +102,10 @@ export const roundUp = (digit, ranges) => {
 }
 
 /**
- * @param {Uint8} digit
- * @param {Ranges} ranges
+ * @template {Base.Uint8} [Digit=Base.Uint8]
+ * @param {Digit} digit
+ * @param {Base.Ranges<Digit>} ranges
+ * @returns {Digit|null}
  */
 export const roundDown = (digit, ranges) => {
   let previous = null
@@ -129,10 +134,11 @@ export const roundDown = (digit, ranges) => {
  * exists, otherwise returns a negative of the average of the two digits to
  * signal that it falls out of the given ranges.
  *
- * @param {Uint8} from - The first digit for the average calculation.
- * @param {Uint8} to - The second digit for the average calculation.
- * @param {Ranges} ranges - The ranges of valid digit values.
- * @returns {Uint8|EQUAL|CONSECUTIVE}
+ * @template {Base.Uint8} [Digit=Base.Uint8]
+ * @param {Digit} from - The first digit for the average calculation.
+ * @param {Digit} to - The second digit for the average calculation.
+ * @param {Base.Ranges<Digit>} ranges - The ranges of valid digit values.
+ * @returns {Digit|EQUAL|CONSECUTIVE}
  */
 export const intermediate = (from, to, ranges) => {
   // Figure out which digit is lower and which one is higher.
@@ -152,7 +158,7 @@ export const intermediate = (from, to, ranges) => {
   // Otherwise way may have a chance for finding a consecutive digit.
   const digit = Math.round((top + bottom) / 2)
 
-  let last = -1
+  let last = null
   // Intermediate digit may fall out of bounds however in which case we will
   // want to round up or down to to fall into the recommended ranges.
   for (const [low, high] of ranges) {
@@ -165,7 +171,7 @@ export const intermediate = (from, to, ranges) => {
       }
       // If rounded up digit (low) falls outside the `bottom..top` range attempt
       // to to round it down to the `last` bound of the previous range.
-      else if (bottom < last && last < high) {
+      else if (last != null && bottom < last && last < high) {
         return last
       }
       // If rounding it up and rounding it down both fail we conclude that `from`
@@ -178,14 +184,16 @@ export const intermediate = (from, to, ranges) => {
 
     // If digit is within the bounds of this range we return it.
     if (low <= digit && digit <= high) {
-      return digit
+      return /** @type {Digit} */ (digit)
     }
+
+    last = high
   }
 
   // If we got here digit must be greater than the upper bound of the last
   // range. If so we do check if rounding it down to the upper bound of the last
   // range would make it fall between `bottom` and `top`.
-  if (bottom < last && last < top) {
+  if (last != null && bottom < last && last < top) {
     return last
   }
   // If last bound falls outside the `bottom..top` then both `from` and `to` are

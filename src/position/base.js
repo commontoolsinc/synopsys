@@ -4,34 +4,45 @@
  */
 
 /**
- * @typedef {readonly [from:Uint8, to:Uint8]} Range
- * @typedef {readonly [Range, ...Range[]]} Ranges
+ * @template {Uint8} [T=Uint8]
+ * @typedef {readonly [from:T, to:T]} Range
  */
 
 /**
+ * @template {Uint8} [T=Uint8]
+ * @typedef {readonly [Range<T>, ...Range<T>[]]} Ranges
+ */
+
+/**
+ * @template {Uint8} [Code=Uint8]
  * @typedef Base
- * @property {Uint8[]} codes
- * @property {Ranges} ranges
+ * @property {[Code, ...Code[]]} codes
+ * @property {Ranges<Code>} ranges
  */
 /**
  * Parses a base description string and generates an ordered list of [from, to] ranges.
- * @param {string} descriptor - A string containing all characters in the base.
- * @returns {Base}
+ *
+ * @template {Uint8} [Code=Uint8]
+ * @param {string} alphabet - A string containing all characters in the base.
+ * @returns {Base<Code>}
  */
-export const parse = (descriptor) => {
+export const parse = (alphabet) => {
+  const { length } = alphabet
+  if (length === 0 || length > 255) {
+    throw new RangeError(`Invalid base alphabet length: ${length}`)
+  }
+
   // Sort the characters in ascending order of their character codes.
-  let codes = [...new Set(descriptor)]
-    .sort((a, b) => a.charCodeAt(0) - b.charCodeAt(0))
-    .map((char) => char.charCodeAt(0))
+  const codes = [...alphabet].map((char) => char.charCodeAt(0))
 
   /** @type {Range[]} */
-  let ranges = []
-  let startCharCode = codes[0]
+  const ranges = []
+  let [startCharCode, ...sortedCodes] = [...new Set(codes)].sort(
+    (a, b) => a - b
+  )
   let endCharCode = startCharCode
 
-  for (let i = 1; i < codes.length; i++) {
-    let charCode = codes[i]
-
+  for (const charCode of sortedCodes) {
     // If the character codes are consecutive, extend the current range.
     if (charCode === endCharCode + 1) {
       endCharCode = charCode
@@ -48,9 +59,9 @@ export const parse = (descriptor) => {
   ranges.push([startCharCode, endCharCode])
 
   return {
-    codes,
-    /** @type {Ranges} */
-    ranges: /** @type {[Range, ...Range[]]} */ (ranges),
+    codes: /** @type {[Code, ...Code[]]} */ (codes),
+    /** @type {Ranges<Code>} */
+    ranges: /** @type {[Range<Code>, ...Range<Code>[]]} */ (ranges),
   }
 }
 
@@ -58,10 +69,55 @@ export const parse = (descriptor) => {
  * @param {Base} base
  * @returns {Uint8}
  */
-export const min = ({ codes }) => codes[0]
+export const min = ({ ranges }) => ranges[0][0]
 
 /**
  * @param {Base} base
  * @returns {Uint8}
  */
-export const max = ({ codes }) => codes[codes.length - 1]
+export const max = ({ ranges }) => ranges[ranges.length - 1][1]
+
+/**
+ * @param {Base} base
+ */
+export const median = ({ codes }) =>
+  [...codes].sort((a, b) => a - b)[(codes.length / 2) | 0]
+
+/**
+ * Converts a byte array to a digit array in a given base.
+ *
+ * @param {ArrayLike<Uint8> & Iterable<Uint8>} bytes
+ * @param {Base} base
+ */
+export const toBase = (bytes, base) => {
+  // encoding_flag:
+  //  - 0: counting leading zeros
+  //  - 1: processing
+  let flag = 0
+  let leadingZeros = 0
+  let encoding = []
+  const n = base.codes.length
+
+  for (let byte of bytes) {
+    if (!(flag || byte)) {
+      leadingZeros++
+    } else {
+      flag = 1
+    }
+
+    let carry = byte
+    for (let i = 0; carry || i < encoding.length; i++) {
+      carry += encoding[i] << 8
+      encoding[i] = carry % n
+      carry = (carry / n) | 0
+    }
+  }
+
+  let len = leadingZeros + encoding.length
+  let digits = new Uint8Array(len)
+  for (let i = 0; i < len; i++) {
+    digits[i] = base.codes[i < leadingZeros ? 0 : encoding[len - i - 1]]
+  }
+
+  return digits
+}
