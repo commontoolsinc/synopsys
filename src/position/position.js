@@ -7,13 +7,6 @@ import * as Digits from './digits.js'
  * @typedef {Digits.Digits<Digits.B62>} Position
  */
 
-/**
- * @param {Position} position
- * @param {Position} bias
- * @returns {Uint8Array}
- */
-export const withBias = (position, bias) => position
-
 const BLANK = /** @type {Patch.Patch} */ (new Uint8Array())
 
 /**
@@ -51,7 +44,7 @@ export const before = (bias, position) => {
   // need to create position with the same major component and decremented
   // minor component.
   if (minor) {
-    return withBias(create(beforeMajor, minor), bias)
+    return create(beforeMajor, minor, bias)
   }
   // However minor component may be at min value.
   else {
@@ -62,17 +55,17 @@ export const before = (bias, position) => {
     // be at their min values.
     if (major) {
       const minor = Minor.max(Major.capacity(major))
-      return withBias(create(major, minor), bias)
+      return create(major, minor, bias)
     }
     // However we are at min major our only option left is to decrement patch
     // component and create a new position with the same major and minor.
     else {
       // Attempt to decrement patch component.
-      const patch = Patch.decrement(Patch.from(position))
+      const patch = Patch.decrement(Patch.from(position), bias)
       // If we managed to decrement patch component we can create a new position
       // with the same major and minor components and decremented patch component.
       if (patch) {
-        return withBias(create(beforeMajor, beforeMinor, patch), bias)
+        return create(beforeMajor, beforeMinor, patch)
       }
       // However if  patch component is at min value there is simply no position
       // in the supported range that would sort before `before` position, therefore
@@ -115,8 +108,11 @@ export const after = (bias, position) => {
     else {
       // Note that patch can always increment because it simply resizes to
       // accommodate larger values.
-      const patch = Patch.increment(Patch.from(position))
-      return withBias(create(afterMajor, afterMinor, patch), bias)
+      return create(
+        afterMajor,
+        afterMinor,
+        Patch.increment(Patch.from(position), bias)
+      )
     }
   }
 }
@@ -149,7 +145,7 @@ export const between = (bias, low, high) => {
           )
           // If patches are also equal there is no `position` between `low` and
           // `high` so we simply return `low` (`high` should be equal to `low`).
-          return patch ? withBias(create(lowMajor, lowMinor, patch), bias) : low
+          return patch ? create(lowMajor, lowMinor, patch) : low
         }
         // When minors are consecutive we look for the next patch and create a
         // position. Note that we can always find next patch because they are
@@ -157,19 +153,19 @@ export const between = (bias, low, high) => {
         case Minor.CONSECUTIVE: {
           // If high has a patch then high without patch will be a more compact
           // position between low and high.
-          let patch = Patch.decrement(Patch.from(high))
+          let patch = Patch.decrement(Patch.from(high), bias)
           if (patch) {
-            return withBias(create(highMajor, highMinor), bias)
+            return create(highMajor, highMinor)
           }
 
           // If we could not trip the patch we could append to a patch in the
           // low position
-          patch = Patch.next(Patch.from(low))
-          return withBias(create(lowMajor, lowMinor, patch), bias)
+          patch = Patch.next(Patch.from(low), bias)
+          return create(lowMajor, lowMinor, patch)
         }
         // When intermediate minor is found we construct new position with it.
         default: {
-          return withBias(create(lowMajor, minor), bias)
+          return create(lowMajor, minor, bias)
         }
       }
     }
@@ -179,33 +175,33 @@ export const between = (bias, low, high) => {
       // value e.g. when `low` is `Zz`.
       let minor = Minor.increment(lowMinor)
       if (minor) {
-        return withBias(create(lowMajor, minor), bias)
+        return create(lowMajor, minor, bias)
       }
 
       // If we can not increment `low` minor, we try to decrement `high` minor.
       // However it may already have a min value e.g. when `high` is `a0`.
       minor = Minor.decrement(highMinor)
       if (minor) {
-        return withBias(create(highMajor, minor), bias)
+        return create(highMajor, minor, bias)
       }
 
       // If high has a patch then high without patch will be a more compact
       // position between low and high.
-      let patch = Patch.decrement(Patch.from(high))
+      let patch = Patch.decrement(Patch.from(high), bias)
       if (patch) {
-        return withBias(create(highMajor, highMinor), bias)
+        return create(highMajor, highMinor, patch)
       }
 
       // If we were not able to neither increment nor decrement we resort to
       // increasing a `low` patch. That always works because patches aren't
       // fixed in size so we can always find a next one.
-      patch = Patch.next(Patch.from(low))
-      return withBias(create(lowMajor, lowMinor, patch), bias)
+      patch = Patch.next(Patch.from(low), bias)
+      return create(lowMajor, lowMinor, patch)
     }
     // When intermediate major is found we construct new position with just a
     // major.
     default: {
-      return withBias(create(major), bias)
+      return create(major, Minor.min(Major.capacity(major)), bias)
     }
   }
 }

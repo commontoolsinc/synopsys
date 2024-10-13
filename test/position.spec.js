@@ -26,6 +26,8 @@ const after = [
   ['Xzzz', 'Y'],
   ['Xzzz01', 'Y'],
   ['dABzz', 'dAC'],
+  ['c0zz', 'c1'],
+  ['bcd111z', 'bce'], // patch is trimmed
   ['z', 'z00000000000000000000000001'], // incrementing a minor digit
   ['zzzzzzzzzzzzzzzzzzzzzzzzzzz', 'zzzzzzzzzzzzzzzzzzzzzzzzzzzV'], // incrementing a patch
   ['~', '~V'], // incrementing a on invalid range
@@ -76,9 +78,11 @@ export const insert = /** @type {const} */ ([
   ['a0', 'a0G', 'a0A'],
   ['b125', 'b129', 'b127'],
   ['a0', 'a1V', 'a1'],
+  ['a0', 'a11', 'a1'],
   ['a0', 'a10', 'a0V'],
   ['a0', 'a11', 'a1'],
   ['Zz', 'a01', 'a'],
+  ['bcd111z', 'bcd113', 'bcd112'],
   [, 'a0V', 'Zz'], // skip a because a0V could not have happened without `a`.
   // [, 'a0V', 'a'],
   [, 'b999', 'b98'], // b999 would not have happened without b99
@@ -98,8 +102,8 @@ const empty = new Uint8Array()
 /**
  * @type {import('entail').Suite}
  */
-export const testDigits = {
-  ...Object.fromEntries(
+export const testPositions = {
+  after: Object.fromEntries(
     after.map(([position, expect]) => [
       `Position.insert(null, { after: "${position}" })) => ${expect}`,
       (assert) => {
@@ -111,7 +115,7 @@ export const testDigits = {
     ])
   ),
 
-  ...Object.fromEntries(
+  before: Object.fromEntries(
     before.map(([position, expect]) => [
       `Position.insert(null, { before: "${position}" })) => ${expect}`,
       (assert) => {
@@ -123,7 +127,7 @@ export const testDigits = {
     ])
   ),
 
-  ...Object.fromEntries(
+  insert: Object.fromEntries(
     insert.map(([after, before, expect]) => [
       `Position.insert(null, { before: ${before}, after: ${after} })) => ${expect}`,
       (assert) => {
@@ -171,4 +175,6 @@ export const testDigits = {
       'gets fraction with a bias'
     )
   },
+
+  'test digits': (assert) => {},
 }

@@ -89,10 +89,10 @@ export const intermediate = (low, high, bias) => {
 
 /**
  * @param {Patch} digits
+ * @param {Bias} bias
  */
-export const next = (digits) =>
-  // We know it will never be equal because we pass the max value.
-  /** @type {Patch} */ (intermediate(digits, max(), new Uint8Array([])))
+export const next = (digits, bias) =>
+  intermediate(digits, max(), bias) || append(digits, bias)
 
 /**
  * @param {Patch} digits
@@ -125,18 +125,42 @@ const decrease = (digits) => {
 
 /**
  *
- * @param {Patch} digits
+ * @param {Patch} patch
+ * @param {Bias} bias
  * @returns {Patch}
  */
-export const increment = (digits) =>
-  Digits.increment(digits, base.ranges) ?? append(digits, median)
+export const increment = (patch, bias) => {
+  const digits = Digits.increment(patch, base.ranges)
+  const [head] = bias
+  if (digits == null) {
+    return append(patch, median)
+  } else if (head == null) {
+    return digits
+  } else if (head >= digits[0]) {
+    return bias
+  } else {
+    return append(digits, bias)
+  }
+}
 
 /**
- * @param {Patch} digits
+ * @param {Patch} patch
+ * @param {Bias} bias
  * @returns {Patch|null}
  */
-export const decrement = (digits) =>
-  Digits.decrement(digits, base.ranges) ?? decrease(digits)
+export const decrement = (patch, bias) => {
+  const digits = Digits.decrement(patch, base.ranges)
+  const [head] = bias
+  if (digits == null) {
+    return decrease(patch)
+  } else if (head == null) {
+    return digits
+  } else if (head <= digits[0]) {
+    return bias
+  } else {
+    return append(digits, bias)
+  }
+}
 
 /**
  * @param {Patch} digits

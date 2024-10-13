@@ -1,3 +1,4 @@
+import { entries, values } from './iterator.js'
 import * as Base from './base.js'
 export const EQUAL = Symbol.for('EQUAL')
 export const CONSECUTIVE = Symbol.for('CONSECUTIVE')
@@ -61,8 +62,7 @@ export const decrement = (digit, ranges) => {
   const subsequent = digit - 1
 
   // Iterate over each range in reverse order.
-  for (let i = ranges.length - 1; i >= 0; i--) {
-    const [from, to] = ranges[i]
+  for (const [from, to] of values.reverse(ranges)) {
     // If the character is above this range, it must be falling between ranges,
     // so we just round it down to the largest digit in this range.
     if (subsequent > to) {

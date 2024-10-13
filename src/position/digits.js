@@ -2,6 +2,7 @@ import * as Digit from './digit.js'
 import * as Base from './base.js'
 import { CONSECUTIVE, EQUAL } from './digit.js'
 export { toBase } from './base.js'
+import { entries } from './iterator.js'
 
 export { CONSECUTIVE, EQUAL } from './digit.js'
 
@@ -78,17 +79,18 @@ export const increment = (source, base) => {
   let digits = new Uint8Array(source)
 
   // Iterate over the digits in reverse order (from least significant to most significant).
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = Digit.increment(digits[i], base)
+  for (const [offset, value] of entries.reverse(digits)) {
+    // for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = Digit.increment(value, base)
     // If digit is -1, we have a carry. Otherwise, no carry.
     if (digit < 0) {
       // If the digit is already at the maximum value in its range, we have a carry.
       // Reset the digit to the minimum value in its range.
-      digits[i] = base[0][0]
+      digits[offset] = base[0][0]
     } else {
-      // Otherwise, no carry, so we can break the loop early.
-      digits[i] = digit
-      return /** @type {T} */ (digits)
+      // Otherwise we found the digit that is consecutive.
+      digits[offset] = digit
+      return /** @type {T} */ (digits.subarray(0, offset + 1))
     }
   }
 
@@ -115,18 +117,19 @@ export const decrement = (source, base) => {
   // Create a new Uint8Array instance to avoid mutating the original one.
   let digits = new Uint8Array(source)
 
-  // Iterate over the digits in reverse order (from least significant to most significant).
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = Digit.decrement(digits[i], base)
+  // Iterate over the digits in reverse order (from least significant to most
+  // significant).
+  for (const [offset, value] of entries.reverse(digits)) {
+    let digit = Digit.decrement(value, base)
     // If digit is -1, we have a "borrow". Otherwise, no "borrow".
     if (digit < 0) {
       // If the digit is already at the minimum value in its range, we have a "borrow".
       // Reset the digit to the maximum value in its range.
-      digits[i] = base[base.length - 1][1]
+      digits[offset] = base[base.length - 1][1]
     } else {
       // Otherwise, no "borrow", so we can break the loop early.
-      digits[i] = digit
-      return /** @type {T} */ (digits)
+      digits[offset] = digit
+      return trim(/** @type {T} */ (digits), base)
     }
   }
 
