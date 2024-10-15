@@ -4,6 +4,7 @@ import { Link, Task } from 'datalogia'
 import { Response } from './http.js'
 import * as Session from './session.js'
 import * as JSON from '@ipld/dag-json'
+export * as DB from 'datalogia'
 
 /**
  * Connects to the  service by opening the underlying store.
