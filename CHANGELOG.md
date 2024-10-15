@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/commontoolsinc/synopsys/compare/v1.3.0...v1.4.0) (2024-10-15)
+
+
+### Features
+
+* std formulas and null value support ([58213de](https://github.com/commontoolsinc/synopsys/commit/58213de1d769e4e50cd44ee0eca9cecebaac6b40))
+
+
+### Bug Fixes
+
+* CORS to allow use from other hosts ([96c04ec](https://github.com/commontoolsinc/synopsys/commit/96c04ecadaf3f54dd8b2a73c3f96afeaf05ea0e2))
+
 ## [1.3.0](https://github.com/commontoolsinc/synopsys/compare/v1.2.0...v1.3.0) (2024-09-25)
 
 
