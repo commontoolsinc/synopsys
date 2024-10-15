@@ -2,7 +2,7 @@ import * as Digit from './digit.js'
 import * as Base from './base.js'
 import { CONSECUTIVE, EQUAL } from './digit.js'
 export { toBase } from './base.js'
-import { entries } from './iterator.js'
+import { reverse } from './iterator.js'
 
 export { CONSECUTIVE, EQUAL } from './digit.js'
 
@@ -70,7 +70,7 @@ export const increment = (source, base) => {
   let digits = new Uint8Array(source)
 
   // Iterate over the digits in reverse order (from least significant to most significant).
-  for (const [offset, value] of entries.reverse(digits)) {
+  for (const [offset, value] of reverse(digits)) {
     // for (let i = digits.length - 1; i >= 0; i--) {
     let digit = Digit.increment(value, base)
     // If digit is -1, we have a carry. Otherwise, no carry.
@@ -110,7 +110,7 @@ export const decrement = (source, base) => {
 
   // Iterate over the digits in reverse order (from least significant to most
   // significant).
-  for (const [offset, value] of entries.reverse(digits)) {
+  for (const [offset, value] of reverse(digits)) {
     let digit = Digit.decrement(value, base)
     // If digit is -1, we have a "borrow". Otherwise, no "borrow".
     if (digit < 0) {
