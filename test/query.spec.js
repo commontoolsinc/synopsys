@@ -41,8 +41,6 @@ export const testQuery = {
         ],
       })
 
-      console.log(matches)
-
       assert.deepEqual(matches, [
         {
           name: 'Groceries',
