@@ -53,15 +53,6 @@ export const toString = (source) => new TextDecoder().decode(source)
 export const fromString = (source) => new TextEncoder().encode(source)
 
 /**
- * @param {ArrayLike<Uint8>} source
- */
-export const fromArray = (source) => {
-  const major = new Uint8Array(source.length)
-  major.set(source)
-  return major
-}
-
-/**
  * Takes an byte array representing position as fixed set of digits and returns
  * a new byte array with the incremented value. Function ensures that returned
  * byte array bytes that are in the base62 range, when increment falls out of
