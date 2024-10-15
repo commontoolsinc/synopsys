@@ -77,8 +77,10 @@ const tree = (database) => instances.get(database)
  * has a `memory:` protocol, an ephemeral in-memory database returned. If the
  * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
+ * @typedef {import('@canvas-js/okra-lmdb').TreeOptions} Options
+ *
  * @param {URL} [url]
- * @param {import('@canvas-js/okra-lmdb').TreeOptions} [options]
+ * @param {Options} [options]
  */
 export const open = (url, options) =>
   Task.spawn(function* () {

@@ -10,10 +10,11 @@ export * as DB from 'datalogia'
  * Connects to the  service by opening the underlying store.
  *
  * @param {URL} url
+ * @param {Store.Options} [options]
  * @returns {Task.Task<MutableSelf, Error>}
  */
-export const open = function* (url) {
-  const store = yield* Store.open(url)
+export const open = function* (url, options) {
+  const store = yield* Store.open(url, options)
   const { id } = yield* Store.status(store)
   return {
     id,
