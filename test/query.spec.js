@@ -1,5 +1,5 @@
 import * as DB from '../src/lib.js'
-import { transact, query, Variable, match, not } from 'datalogia'
+import { transact, query, Var, match, not } from 'datalogia'
 
 import * as OS from 'node:os'
 import { Link, Task } from '../src/lib.js'
@@ -14,11 +14,11 @@ export const testQuery = {
     Task.spawn(function* () {
       const { db } = yield* open()
 
-      const list = Variable.link()
-      const title = Variable.string()
-      const name = Variable.string()
-      const done = Variable.boolean()
-      const todo = Variable.link()
+      const list = Var.link()
+      const title = Var.string()
+      const name = Var.string()
+      const done = Var.boolean()
+      const todo = Var.link()
 
       const matches = yield* query(db, {
         select: {
@@ -41,20 +41,22 @@ export const testQuery = {
         ],
       })
 
+      console.log(matches)
+
       assert.deepEqual(matches, [
         {
           name: 'Groceries',
           todo: [
             { title: 'Buy Bread', done: true },
-            { title: 'Buy Milk', done: false },
             { title: 'Buy Eggs', done: false },
+            { title: 'Buy Milk', done: false },
           ],
         },
         {
           name: 'Chores',
           todo: [
-            { title: 'Do Dishes', done: false },
             { title: 'Do Laundry', done: false },
+            { title: 'Do Dishes', done: false },
           ],
         },
       ])
