@@ -94,6 +94,9 @@ export const insert = /** @type {const} */ ([
   ['a00', , 'a1'],
   ['a00', 'a1', 'a0V'],
   ['0', '1', '0V'],
+  ['Y', '_', 'Z'],
+  ['y', '{', 'z'],
+  ['a01', 'a013', 'a012'],
   // ['a1', 'a0', 'a1V'], // should error
 ])
 
@@ -176,5 +179,38 @@ export const testPositions = {
     )
   },
 
-  'test digits': (assert) => {},
+  'test reverse order': (assert) => {
+    assert.equal(
+      Position.insert(new Uint8Array(), { after: '¾', before: 'y' }),
+      'z',
+      'can take in reverse order'
+    )
+  },
+  'test out of bound': (assert) => {
+    assert.deepEqual(
+      Position.Position.insert(new Uint8Array(), {
+        after: new Uint8Array(['¾'.charCodeAt(0)]),
+        before: new Uint8Array(['´'.charCodeAt(0)]),
+      }),
+      new Uint8Array(['¾'.charCodeAt(0), 'V'.charCodeAt(0)])
+    )
+  },
+
+  'test implicit 0s': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([0]), {
+        before: 'a01',
+        after: 'a013',
+      }),
+      'a012'
+    )
+
+    assert.deepEqual(
+      Position.insert(new Uint8Array([0]), {
+        after: 'a02',
+        before: 'a013',
+      }),
+      'a01W'
+    )
+  },
 }

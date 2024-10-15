@@ -1,4 +1,4 @@
-import { entries, values } from './iterator.js'
+import { values } from './iterator.js'
 import * as Base from './base.js'
 export const EQUAL = Symbol.for('EQUAL')
 export const CONSECUTIVE = Symbol.for('CONSECUTIVE')
@@ -80,63 +80,16 @@ export const decrement = (digit, ranges) => {
 }
 
 /**
- * @template {Base.Uint8} [Digit=Base.Uint8]
- * @param {Digit} digit
- * @param {Base.Ranges<Digit>} ranges
- * @returns {Digit|null}
- */
-export const round = (digit, ranges) => {
-  for (const [low, high] of ranges) {
-    // If digit is below this range we just round it up to the the lower bound.
-    if (digit < low) {
-      return low
-    }
-    // If digit is less then high bound of the range it is within the range and
-    // we return it.
-    else if (digit <= high) {
-      return digit
-    }
-  }
-
-  return null
-}
-
-/**
- * @template {Base.Uint8} [Digit=Base.Uint8]
- * @param {Digit} digit
- * @param {Base.Ranges<Digit>} ranges
- * @returns {Digit|null}
- */
-export const roundDown = (digit, ranges) => {
-  let previous = null
-  for (const [low, high] of ranges) {
-    // If digit is less than or equal to the high bound of the range we round it
-    // down to the low bound of the range.
-    if (digit < low) {
-      if (previous) {
-        return previous
-      } else {
-        return null
-      }
-    } else if (digit <= high) {
-      return digit
-    } else {
-      previous = high
-    }
-  }
-
-  return previous
-}
-
-/**
  * Finds an intermediate digit between the given two with a constraint that
  * it fits passed ranges. Return positive value if the valid intermediate digit
  * exists, otherwise returns a negative of the average of the two digits to
  * signal that it falls out of the given ranges.
  *
+ * @template {Digit} From
+ * @template {Digit} To
  * @template {Base.Uint8} [Digit=Base.Uint8]
- * @param {Digit} from - The first digit for the average calculation.
- * @param {Digit} to - The second digit for the average calculation.
+ * @param {From} from - The first digit for the average calculation.
+ * @param {To} to - The second digit for the average calculation.
  * @param {Base.Ranges<Digit>} ranges - The ranges of valid digit values.
  * @returns {Digit|EQUAL|CONSECUTIVE}
  */

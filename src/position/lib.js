@@ -1,7 +1,8 @@
 import * as Position from './position.js'
 import * as Digits from './digits.js'
-import * as Digit from './digit.js'
 import * as UTF8 from '../utf8.js'
+
+export { Position }
 
 /**
  * @typedef {string} At
