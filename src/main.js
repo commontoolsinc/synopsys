@@ -17,7 +17,7 @@ export const GiB = MiB * 1024
  */
 export const main = function* ({
   port = Number(process.env.PORT ?? 8080),
-  storeSize = Number(process.env.STORE_SIZE ?? 4 * GiB),
+  storeSize = Number(process.env.STORE_SIZE ?? (4 * GiB - 1)), // 4GiB causes LMDB error
   store = process.env.STORE ?? '../service-store',
 } = {}) {
   const url = new URL(store, import.meta.url)
