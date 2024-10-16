@@ -118,7 +118,9 @@ const decrease = (digits) => {
 
   if (offset <= 0) {
     return null
-  } else {
+  }
+  ///* c8 ignore next 3 */
+  else {
     return digits.subarray(0, offset + 1)
   }
 }
@@ -149,10 +151,12 @@ export const increment = (patch, bias) => {
  * @returns {Patch|null}
  */
 export const decrement = (patch, bias) => {
-  const digits = Digits.decrement(patch, base.ranges)
+  const digits = Digits.decrement(patch, base.ranges) || decrease(patch)
   const [head] = bias
+  // If we can not create decremented nor shorten patch we give up.
+  // we
   if (digits == null) {
-    return decrease(patch)
+    return null
   } else if (head == null) {
     return digits
   } else if (head <= digits[0]) {

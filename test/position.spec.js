@@ -97,6 +97,12 @@ export const insert = /** @type {const} */ ([
   ['Y', '_', 'Z'],
   ['y', '{', 'z'],
   ['a01', 'a013', 'a012'],
+  ['A', 'C', 'B'],
+  ['A0', 'A2', 'A1'],
+  ['a1', 'b1', 'a2'],
+  ['a1a', 'a1c', 'a1b'],
+  ['a1a', 'a1a', 'a1a'], // no positions in between
+  ['a1a', 'a1b', 'a1aV'],
   // ['a1', 'a0', 'a1V'], // should error
 ])
 
@@ -212,5 +218,90 @@ export const testPositions = {
       }),
       'a01W'
     )
+  },
+
+  'insert after choose bias when between patches': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([':'.charCodeAt(0)]), {
+        after: 'zzzzzzzzzzzzzzzzzzzzzzzzzzz1',
+      }),
+      'zzzzzzzzzzzzzzzzzzzzzzzzzzzW'
+    )
+  },
+
+  'insert after appends bias when bias is smaller': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([':'.charCodeAt(0)]), {
+        after: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzw',
+      }),
+      'zzzzzzzzzzzzzzzzzzzzzzzzzzzxW'
+    )
+  },
+
+  'insert before choose bias when between patches': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([':'.charCodeAt(0)]), {
+        before: 'A00000000000000000000000000w',
+      }),
+      'A00000000000000000000000000W'
+    )
+  },
+
+  'insert appends bias when greater than decremented patch': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array(['#'.charCodeAt(0)]), {
+        before: 'A00000000000000000000000000w',
+      }),
+      'A00000000000000000000000000vz'
+    )
+
+    assert.ok('A00000000000000000000000000vz' < 'A00000000000000000000000000w')
+  },
+
+  'shortens patch when patch can not be decremented': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array(['#'.charCodeAt(0)]), {
+        before: 'A0000000000000000000000000000',
+      }),
+      'A'
+    )
+
+    assert.ok('A' < 'A0000000000000000000000000000')
+  },
+
+  'consecutive patches': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array(['#'.charCodeAt(0)]), {
+        after: 'a1A',
+        before: 'a1B',
+      }),
+      'a1Az'
+    )
+
+    assert.ok('a1A' < 'a1Az')
+    assert.ok('a1Az' < 'a1B')
+  },
+
+  'patches with bias': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([':'.charCodeAt(0)]), {
+        after: 'a1A',
+        before: 'a1z',
+      }),
+      'a1W'
+    )
+  },
+
+  'patch next out of bound': (assert) => {
+    assert.deepEqual(
+      Position.insert(new Uint8Array([':'.charCodeAt(0)]), {
+        after: 'a1{',
+        before: 'a2',
+      }),
+      'a1{W'
+    )
+
+    assert.ok('a1{' < 'a1{W')
+    assert.ok('a1{W' < 'a2')
   },
 }
