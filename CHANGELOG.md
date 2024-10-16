@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1](https://github.com/commontoolsinc/synopsys/compare/v1.4.0...v1.4.1) (2024-10-15)
+
+
+### Bug Fixes
+
+* failing test ([ed1e7be](https://github.com/commontoolsinc/synopsys/commit/ed1e7be5c6a622a0d106fd3c21e02f4d73278fd7))
+* increase default size to 3GiB ([806fcc5](https://github.com/commontoolsinc/synopsys/commit/806fcc5320af43571f7fc139aff4356229898861))
+* MDB_MAP_FULL issue ([9459e62](https://github.com/commontoolsinc/synopsys/commit/9459e628f6d9bc8767824abf40e783b885d5924f))
+* MDB_MAP_FULL issue ([9459e62](https://github.com/commontoolsinc/synopsys/commit/9459e628f6d9bc8767824abf40e783b885d5924f))
+
 ## [1.4.0](https://github.com/commontoolsinc/synopsys/compare/v1.3.0...v1.4.0) (2024-10-15)
 
 
