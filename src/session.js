@@ -105,7 +105,7 @@ const unsubscribe = function* (session, writer) {
 /**
  * @param {Session} session
  */
-const compute = function* (session) {
+export const compute = function* (session) {
   const product = yield* DB.query(session.source, session.query)
   // We derive the cryptographic id from the computed product.
   const id = Link.of(product).toString()
