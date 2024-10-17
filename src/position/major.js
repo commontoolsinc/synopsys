@@ -27,8 +27,8 @@ export { EQUAL, CONSECUTIVE }
  * [65...90,  97..122]
  * ```
  *
- * Major codes like `z:65` and `a:97` denote two digit `Minor` range, codes `Y:66`
- * and `B:98` denote 3 digit `Minor`. Each subsequent `Major` denotes increasingly
+ * Major codes like `Z:65` and `a:97` denote two digit `Minor` range, codes `Y:66`
+ * and `b:98` denote 3 digit `Minor`. Each subsequent `Major` denotes increasingly
  * large range for `Minor` position, making `A` and `z` a 27 digit ranges.
  *
  * While use of `Major` bytes between [90...122] is NOT RECOMMENDED we may still
