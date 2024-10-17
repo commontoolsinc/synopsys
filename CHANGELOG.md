@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/commontoolsinc/synopsys/compare/v1.4.1...v1.5.0) (2024-10-17)
+
+
+### Features
+
+* implement position derivation logic ([0d16bf9](https://github.com/commontoolsinc/synopsys/commit/0d16bf950597255373d505f7c42d655286a6d3b2))
+
+
+### Bug Fixes
+
+* misleading comments ([b1c64d3](https://github.com/commontoolsinc/synopsys/commit/b1c64d3972b2ec1eb222d3d0905272a696377522))
+
 ## [1.4.1](https://github.com/commontoolsinc/synopsys/compare/v1.4.0...v1.4.1) (2024-10-15)
 
 
