@@ -8,7 +8,7 @@
     "build": "tsc --build",
     "prepublishOnly": "tsc --build",
     "test:web": "playwright-test --runner entail 'test/**/*.spec.js'",
-    "test:node": "c8 entail 'test/*.spec.js'",
+    "test:node": "c8 entail 'test/**/*.spec.js'",
     "test": "npm run test:node",
     "coverage": "c8 --reporter=html entail 'test/*.spec.js' && npm_config_yes=true npx st -d coverage -p 8080",
     "check": "tsc --build",
