@@ -30,8 +30,11 @@ importers:
         specifier: 22.5.5
         version: 22.5.5
       datalogia:
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.3
+        version: 0.8.3
+      merkle-reference:
+        specifier: ^0.0.3
+        version: 0.0.3
       multiformats:
         specifier: ^13.3.0
         version: 13.3.0
@@ -424,8 +427,8 @@ packages:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
     engines: {node: '>= 6'}
 
-  datalogia@0.8.0:
-    resolution: {integrity: sha512-tUKsVsGytps9lLEs1CGDQ5rKCkP4Y6aS+N10SEx0h/Of9+shyakQJzIhj2mj+6eWbW2XH5ucqwRC70tMP2ylAQ==}
+  datalogia@0.8.3:
+    resolution: {integrity: sha512-xzGZW0LLTPzLLk+egm6xEFucdyPyJmjJ7cKmqXdRBO9b/N9PLp7og74j8LLO14s55GsjjVwSV6EnuICg3Ffw5Q==}
 
   define-data-property@1.1.4:
     resolution: {integrity: sha512-rBMvIzlpA8v6E+SJZoo++HAYqsLrkg7MSfIinMPFhmkorw7X+dOXVJQs+QT69zGkzMyfDnIMN2Wid1+NbL3T+A==}
@@ -730,6 +733,9 @@ packages:
   merge2@1.4.1:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
+
+  merkle-reference@0.0.3:
+    resolution: {integrity: sha512-TcqhF74XE1QrdccZkNyIdI3lglw6LarJcKy46I7qqo4vPXJ0fWkD7tcwCPqXCdg3sxOhbwpYP/1t/uiorWBGCQ==}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -1452,7 +1458,7 @@ snapshots:
 
   data-uri-to-buffer@3.0.1: {}
 
-  datalogia@0.8.0:
+  datalogia@0.8.3:
     dependencies:
       '@ipld/dag-cbor': 9.2.1
       '@noble/hashes': 1.3.3
@@ -1758,6 +1764,11 @@ snapshots:
   merge-stream@2.0.0: {}
 
   merge2@1.4.1: {}
+
+  merkle-reference@0.0.3:
+    dependencies:
+      '@noble/hashes': 1.3.3
+      multiformats: 13.3.0
 
   micromatch@4.0.8:
     dependencies:

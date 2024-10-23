@@ -1,15 +1,16 @@
-import * as LMDB from '@canvas-js/okra-lmdb'
-import * as Memory from '@canvas-js/okra-memory'
 import * as Okra from '@canvas-js/okra'
 export * from '@canvas-js/okra'
-import * as UTF8 from './utf8.js'
+import * as UTF8 from '../utf8.js'
 import { Constant, API, Task } from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
-import { fileURLToPath } from 'node:url'
 import { base58btc } from 'multiformats/bases/base58'
+import * as Attribute from '../datum/attribute.js'
+import * as Entity from '../datum/entity.js'
+import * as Reference from '../datum/reference.js'
+import * as Datum from '../datum.js'
 
-const { Link, Bytes } = Constant
-export { Link, CBOR, Task }
+const { Bytes } = Constant
+export { Task, CBOR }
 
 const instances = new WeakMap()
 
@@ -21,15 +22,6 @@ const instances = new WeakMap()
  * @implements {API.Transactor<Commit>}
  */
 export class Database {
-  /**
-   * @param {Okra.Tree} tree
-   */
-  static load(tree) {
-    const instance = new Database()
-    instances.set(instance, tree)
-    return instance
-  }
-
   /**
    * @param {API.FactsSelector} [selector]
    */
@@ -73,24 +65,14 @@ class Revision {
 const tree = (database) => instances.get(database)
 
 /**
- * Opens a database instance at the given URL. If the URL is not provided or
- * has a `memory:` protocol, an ephemeral in-memory database returned. If the
- * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
- * @typedef {import('@canvas-js/okra-lmdb').TreeOptions} Options
- *
- * @param {URL} [url]
- * @param {Options} [options]
+ * @param {Okra.Tree} tree
  */
-export const open = (url, options) =>
+export const open = (tree) =>
   Task.spawn(function* () {
-    if (!url || url.protocol === 'memory:') {
-      return Database.load(new Memory.Tree(options))
-    } else if (url?.protocol === 'file:') {
-      return Database.load(new LMDB.Tree(fileURLToPath(url), options))
-    } else {
-      throw new Error(`Unsupported protocol: ${url.protocol}`)
-    }
+    const instance = new Database()
+    instances.set(instance, tree)
+    return instance
   })
 
 /**
@@ -149,7 +131,7 @@ export const scan = (db, { entity, attribute, value } = {}) =>
 const collectDatums = (entries) => {
   const results = []
   for (const [, value] of entries) {
-    const datum = CBOR.decode(value)
+    const datum = Datum.fromBytes(value)
     results.push(datum)
   }
 
@@ -170,7 +152,7 @@ const collectMatchingDatums = (
   const offset = suffix.length + 1
   for (const [key, value] of entries) {
     if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
-      const datum = CBOR.decode(value)
+      const datum = Datum.fromBytes(value)
       results.push(datum)
     }
   }
@@ -207,9 +189,9 @@ export const deriveSearchPath = ({ entity, attribute, value }) => {
   if (entity) {
     return [
       EAVT,
-      Link.toBytes(entity),
-      attribute === undefined ? null : CBOR.encode(attribute),
-      value === undefined ? null : Link.toBytes(Link.of(value)),
+      Entity.toBytes(entity),
+      attribute === undefined ? null : Attribute.toBytes(attribute),
+      value === undefined ? null : Entity.toBytes(Reference.of(value)),
     ]
   }
   // If we do not know the entity but know a value we are most likely doing
@@ -217,15 +199,15 @@ export const deriveSearchPath = ({ entity, attribute, value }) => {
   else if (value !== undefined) {
     return [
       VAET,
-      Link.toBytes(Link.of(value)),
-      attribute === undefined ? null : CBOR.encode(attribute),
+      Entity.toBytes(Reference.of(value)),
+      attribute === undefined ? null : Attribute.toBytes(attribute),
       null,
     ]
   }
   // If we know neither entity nor value we have column-style access pattern
   // and we use AEVT index.
   else if (attribute !== undefined) {
-    return [AEVT, CBOR.encode(attribute), null, null]
+    return [AEVT, Attribute.toBytes(attribute), null, null]
   }
   // If we know nothing we simply choose an EAVT index.
   else {
@@ -314,10 +296,10 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  *
  *
  * @param {Database} db
- * @param {API.Transaction} instructions
+ * @param {API.Transaction} changes
  * @returns {API.Task<Commit, Error>}
  */
-export const transact = (db, instructions) =>
+export const transact = (db, changes) =>
   Task.wait(
     tree(db).write((writer) => {
       const root = writer.getRoot()
@@ -328,30 +310,30 @@ export const transact = (db, instructions) =>
       const cause = {
         origin: hash,
         time,
-        transaction: instructions,
+        transaction: changes,
       }
-      const tx = Link.of(cause)
+      const tx = Reference.of(cause)
 
       /** @type {{Assert: API.Fact}[]} */
       const assertions = [{ Assert: [tx, 'db/source', CBOR.encode(cause)] }]
 
-      for (const instruction of [...assertions, ...instructions]) {
+      for (const instruction of [...assertions, ...changes]) {
         if (instruction.Assert) {
           const [entity, attribute, value] = instruction.Assert
-          const datum = [...instruction.Assert, tx]
-          const fact = CBOR.encode(datum)
-          const e = Link.toBytes(entity)
-          const a = CBOR.encode(attribute)
-          const v = Link.toBytes(Link.of(value))
+          const fact = Datum.toBytes([...instruction.Assert, tx])
+
+          const e = Entity.toBytes(entity)
+          const a = Attribute.toBytes(attribute)
+          const v = Entity.toBytes(Reference.of(value))
 
           writer.set(toSearchKey([EAVT, e, a, v]), fact)
           writer.set(toSearchKey([AEVT, a, e, v]), fact)
           writer.set(toSearchKey([VAET, v, a, e]), fact)
         } else if (instruction.Retract) {
           const [entity, attribute, value] = instruction.Retract
-          const e = Link.toBytes(entity)
-          const a = CBOR.encode(attribute)
-          const v = Link.toBytes(Link.of(value))
+          const e = Entity.toBytes(entity)
+          const a = Attribute.toBytes(attribute)
+          const v = Entity.toBytes(Reference.of(value))
 
           const key = toSearchKey([EAVT, e, a, v])
           const entries = writer.entries(toLowerBound(key), toUpperBound(key))

@@ -1,4 +1,4 @@
-import { Link, Task } from '../src/lib.js'
+import { Task, refer } from 'synopsys'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
 
@@ -47,6 +47,6 @@ export const testLMDB = {
  */
 const generateBatch = function* (start, size) {
   for (let i = start; i < start + size; i++) {
-    yield { Assert: [Link.of({ count: i }), 'count', i] }
+    yield { Assert: [refer({ count: i }), 'count', i] }
   }
 }

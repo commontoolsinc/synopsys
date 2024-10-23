@@ -32,6 +32,21 @@
       "types": "./dist/src/lib.d.ts",
       "import": "./src/lib.js",
       "default": "./src/lib.js"
+    },
+    "./store/okra": {
+      "types": "./dist/src/store/okra.d.ts",
+      "import": "./src/store/okra.js",
+      "default": "./src/store/okra.js"
+    },
+    "./store/memory": {
+      "types": "./dist/src/store/memory.d.ts",
+      "import": "./src/store/memory.js",
+      "default": "./src/store/memory.js"
+    },
+    "./store/file": {
+      "types": "./dist/src/store/file.d.ts",
+      "import": "./src/store/file.js",
+      "default": "./src/store/file.js"
     }
   },
   "dependencies": {
@@ -42,8 +57,9 @@
     "@ipld/dag-json": "10.2.2",
     "@noble/hashes": "1.3.3",
     "@types/node": "22.5.5",
-    "datalogia": "^0.8.0",
-    "multiformats": "^13.3.0"
+    "datalogia": "^0.8.3",
+    "multiformats": "^13.3.0",
+    "merkle-reference": "^0.0.3"
   },
   "devDependencies": {
     "@web-std/fetch": "4.2.1",

@@ -1,13 +1,13 @@
-import * as Query from './query.js'
+import * as Query from './agent/query.js'
 import * as DB from 'datalogia'
 import { Link } from 'datalogia'
-import * as Task from './task.js'
+import * as Task from 'datalogia/task'
 import * as JSON from '@ipld/dag-json'
 
 /**
  * @template {DB.API.Selector} [Select=DB.API.Selector]
  * @typedef {object} Session
- * @property {Query.Query<Select>} query
+ * @property {DB.Query<Select>} query
  * @property {DB.Querier} source
  * @property {Set<WritableStreamDefaultWriter<Uint8Array>>} subscriber
  * @property {SessionState} state
@@ -104,8 +104,9 @@ const unsubscribe = function* (session, writer) {
 
 /**
  * @param {Session} session
+ * @returns {Task.Task<SessionState, Error>}
  */
-const compute = function* (session) {
+function* compute(session) {
   const product = yield* DB.query(session.source, session.query)
   // We derive the cryptographic id from the computed product.
   const id = Link.of(product).toString()

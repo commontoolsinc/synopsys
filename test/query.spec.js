@@ -1,10 +1,6 @@
-import * as DB from '../src/lib.js'
 import { transact, query, Var, match, not } from 'datalogia'
-
-import * as OS from 'node:os'
-import { Link, Task } from '../src/lib.js'
-import { pathToFileURL } from 'node:url'
-import FS from 'node:fs'
+import { refer, Task } from 'synopsys'
+import * as Memory from 'synopsys/store/memory'
 
 /**
  * @type {import('entail').Suite}
@@ -61,22 +57,18 @@ export const testQuery = {
     }),
 }
 
-/**
- *
- * @param {URL} [url]
- */
-function* open(url) {
-  const db = yield* DB.open(url)
+function* open() {
+  const db = yield* Memory.open()
 
-  const groceries = Link.of({ name: 'Groceries' })
-  const chores = Link.of({ name: 'Chores' })
+  const groceries = refer({ name: 'Groceries' })
+  const chores = refer({ name: 'Chores' })
 
-  const milk = Link.of({ title: 'Buy Milk' })
-  const eggs = Link.of({ title: 'Buy Eggs' })
-  const bread = Link.of({ title: 'Buy Bread', done: true })
+  const milk = refer({ title: 'Buy Milk' })
+  const eggs = refer({ title: 'Buy Eggs' })
+  const bread = refer({ title: 'Buy Bread', done: true })
 
-  const laundry = Link.of({ title: 'Do Laundry' })
-  const dishes = Link.of({ title: 'Do Dishes' })
+  const laundry = refer({ title: 'Do Laundry' })
+  const dishes = refer({ title: 'Do Dishes' })
 
   const tx = yield* transact(db, [
     { Assert: [groceries, 'name', 'Groceries'] },
@@ -95,7 +87,7 @@ function* open(url) {
     { Assert: [dishes, 'title', 'Do Dishes'] },
   ])
 
-  const cause = DB.Link.of(tx.cause)
+  const cause = refer(tx.cause)
 
   return {
     db,

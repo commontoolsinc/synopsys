@@ -1,19 +1,17 @@
 import * as DB from 'datalogia'
-import * as Task from './task.js'
-
-/**
- * @template {DB.API.Selector} [Select=DB.API.Selector]
- * @typedef {object} Query
- * @property {Select} source.select
- * @property {Iterable<DB.API.Clause>} source.where
- */
+import * as Type from './type.js'
+import * as Task from 'datalogia/task'
+import * as JSON from '@ipld/dag-json'
+import * as DAG from './dag.js'
+import { Var } from 'datalogia'
 
 /**
  * Takes JSON formatted query and return a query object with variables
  * expected by the database.
  *
+ * @template {DB.Selector} [Select=DB.Selector]
  * @param {unknown} source
- * @returns {Task.Task<Query, Error>}
+ * @returns {Task.Task<DB.Query<Select>, Error>}
  */
 
 export const fromJSON = function* (source) {
@@ -27,7 +25,39 @@ export const fromJSON = function* (source) {
     env
   )
 
-  return { select, where }
+  return { select: /** @type {Select} */ (select), where }
+}
+
+/**
+ * Takes a query and encodes it byte-array in DAG-JSON format.
+ *
+ * @template {DB.Selector} [Select=DB.API.Selector]
+ * @param {DB.Query<Select>} source
+ * @returns {Type.Task<Type.ByteView<DB.Query<Select>>, Error>}
+ */
+export function* toBytes(source) {
+  const query = yield* fromJSON(source)
+  const bytes = yield* DAG.encode(JSON, query, {
+    // Turn `null` and array hole into a unit and omit properties
+    // set to `undefined` or symbols.
+    null: {},
+    hole: {},
+    implicit: {},
+  })
+  return /** @type {Type.ByteView<DB.Query<Select>>} */ (bytes)
+}
+
+/**
+ * Takes a query and decodes it from byte-array in DAG-JSON format.
+ *
+ * @template {DB.API.Selector} [Select=DB.API.Selector]
+ * @param {Type.ByteView<DB.Query<Select>>|Uint8Array} bytes
+ * @returns {Type.Task<DB.Query<Select>, Error>}
+ */
+export function* fromBytes(bytes) {
+  const dag = yield* DAG.decode(JSON, bytes)
+  const query = yield* fromJSON(dag)
+  return /** @type {DB.Query<Select>}*/ (query)
 }
 
 /**
@@ -35,7 +65,7 @@ export const fromJSON = function* (source) {
  * @returns {source is `?${string}`}
  */
 const isVariable = (source) =>
-  typeof source === 'string' && source.startsWith('?')
+  Var.is(source) || (typeof source === 'string' && source.startsWith('?'))
 
 /**
  * Takes JSON formatted `.select` clause of the DB query and returns a `select`
@@ -53,11 +83,11 @@ export const readSelect = function* (source, env) {
       const [member] = source
       if (isVariable(member)) {
         const vars = withVariable(env, member)
-        return yield* Task.ok({
+        return {
           /** @type {DB.API.Selector} */
-          select: [vars[member]],
+          select: [getVariable(vars, member)],
           env: vars,
-        })
+        }
       } else if (isObject(member)) {
         const { select, env: vars } = yield* readSelect(member, env)
         return {
@@ -75,7 +105,7 @@ export const readSelect = function* (source, env) {
       for (const [name, value] of Object.entries(source)) {
         if (isVariable(value)) {
           vars = withVariable(vars, value)
-          entries.push([name, vars[value]])
+          entries.push([name, getVariable(vars, value)])
         } else {
           const { select, env } = yield* readSelect(value, vars)
           entries.push([name, select])
@@ -115,7 +145,7 @@ export const readWhere = function* (source, env) {
       where.push(form)
       vars = env
     }
-    return yield* Task.ok({ where, env: vars })
+    return { where, env: vars }
   } else {
     return yield* Task.fail(
       new Error(
@@ -144,7 +174,7 @@ export const readForm = function* (source, env) {
   // environment.
   if (isVariable(source)) {
     vars = withVariable(vars, source)
-    return yield* Task.ok({ form: vars[source], env: vars })
+    return { form: getVariable(vars, source), env: vars }
   }
   // If it is an array we recursively process each member of the array.
   else if (Array.isArray(source)) {
@@ -154,7 +184,7 @@ export const readForm = function* (source, env) {
       forms.push(form)
       vars = env
     }
-    return yield* Task.ok({ form: forms, env: vars })
+    return { form: forms, env: vars }
   }
   // If it is an object we recursively process each member pair.
   else if (isObject(source)) {
@@ -169,7 +199,7 @@ export const readForm = function* (source, env) {
   }
   // if it is anything else we just return it as is.
   else {
-    return yield* Task.ok({ form: source, env: vars })
+    return { form: source, env: vars }
   }
 }
 
@@ -181,6 +211,13 @@ export const readForm = function* (source, env) {
 const isObject = (source) => source != null && typeof source === 'object'
 
 /**
+ * @param {DB.Variable|string} variable
+ * @returns
+ */
+const toKey = (variable) =>
+  Var.is(variable) ? Var.id(variable) : `$${variable.slice(1)}`
+
+/**
  * @template {`?${string}`} Var
  * @template {DB.Variables} Env
  * @param {Env} env
@@ -188,4 +225,12 @@ const isObject = (source) => source != null && typeof source === 'object'
  * @returns {Env & {[key in Var]: DB.API.Variable}}
  */
 export const withVariable = (env, variable) =>
-  env[variable] ? env : { ...env, [variable]: DB.variable() }
+  env[toKey(variable)] ? env : { ...env, [toKey(variable)]: DB.variable() }
+
+/**
+ *
+ * @param {DB.Variables} env
+ * @param {DB.Variable|string} variable
+ * @returns
+ */
+export const getVariable = (env, variable) => env[toKey(variable)]
