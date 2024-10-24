@@ -33,6 +33,16 @@
       "import": "./src/lib.js",
       "default": "./src/lib.js"
     },
+    "./agent": {
+      "types": "./dist/src/agent.d.ts",
+      "import": "./src/agent.js",
+      "default": "./src/agent.js"
+    },
+    "./service": {
+      "types": "./dist/src/service.d.ts",
+      "import": "./src/service.js",
+      "default": "./src/service.js"
+    },
     "./store/okra": {
       "types": "./dist/src/store/okra.d.ts",
       "import": "./src/store/okra.js",

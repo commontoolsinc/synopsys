@@ -4,6 +4,7 @@ import * as Task from 'datalogia/task'
 import * as JSON from '@ipld/dag-json'
 import * as DAG from './dag.js'
 import { Var } from 'datalogia'
+import { Reference } from 'merkle-reference'
 
 /**
  * Takes JSON formatted query and return a query object with variables
@@ -15,6 +16,12 @@ import { Var } from 'datalogia'
  */
 
 export const fromJSON = function* (source) {
+  if (typeof source !== 'object' || source === null) {
+    throw new TypeError(
+      `Invalid query, expected an object instead got ${JSON.stringify(source)}`
+    )
+  }
+
   const { select, env } = yield* readSelect(
     /** @type {{select?:unknown}} */ (source)?.select ?? {},
     Object.create(null)
@@ -147,12 +154,8 @@ export const readWhere = function* (source, env) {
     }
     return { where, env: vars }
   } else {
-    return yield* Task.fail(
-      new Error(
-        `.where must be an array of clause, instead got ${JSON.stringify(
-          source
-        )}`
-      )
+    throw new Error(
+      `Invalid query, 'where' field must be an array of clause, instead got '${source}'`
     )
   }
 }
@@ -185,6 +188,8 @@ export const readForm = function* (source, env) {
       vars = env
     }
     return { form: forms, env: vars }
+  } else if (Reference.is(source)) {
+    return { form: source, env: vars }
   }
   // If it is an object we recursively process each member pair.
   else if (isObject(source)) {
@@ -221,11 +226,11 @@ const toKey = (variable) =>
  * @template {`?${string}`} Var
  * @template {DB.Variables} Env
  * @param {Env} env
- * @param {Var} variable
+ * @param {Var} instance
  * @returns {Env & {[key in Var]: DB.API.Variable}}
  */
-export const withVariable = (env, variable) =>
-  env[toKey(variable)] ? env : { ...env, [toKey(variable)]: DB.variable() }
+export const withVariable = (env, instance) =>
+  env[toKey(instance)] ? env : { ...env, [toKey(instance)]: variable() }
 
 /**
  *
@@ -234,3 +239,16 @@ export const withVariable = (env, variable) =>
  * @returns
  */
 export const getVariable = (env, variable) => env[toKey(variable)]
+
+/**
+ * @returns {Type.Variable<any>}
+ */
+export const variable = () => new Variable()
+
+class Variable {
+  static id = 0
+
+  constructor(id = ++Variable.id) {
+    this['?'] = { id }
+  }
+}

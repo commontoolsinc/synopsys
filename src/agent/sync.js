@@ -32,22 +32,6 @@ class PromiseController {
   abort(error) {
     this.#reject(error)
   }
-
-  /** @type {Promise<T>['then']} */
-  then(onResolve, onReject) {
-    return this.promise.then(onResolve, onReject)
-  }
-  /** @type {Promise<T>['catch']} */
-  catch(onReject) {
-    return this.promise.catch(onReject)
-  }
-  /** @type {Promise<T>['finally']} */
-  finally(onFinally) {
-    return this.promise.finally(onFinally)
-  }
-  get [Symbol.toStringTag]() {
-    return 'PromiseController'
-  }
 }
 
 export const promise = () => new PromiseController()
@@ -93,4 +77,123 @@ export const transform = (source, operator) => {
   })
 
   return source.pipeThrough(stream)
+}
+
+/**
+ * @template T
+ * @param {ReadableStream<T>} source
+ */
+export const broadcast = (source) => BroadcastStream.from(source)
+
+/**
+ * @template T
+ * @implements {UnderlyingSink<T>}
+ */
+export class BroadcastStream {
+  /**
+   * @template T
+   * @param {ReadableStream<T>} source
+   */
+  static from(source) {
+    const broadcast = new BroadcastStream()
+    broadcast.pipeInto(source)
+    // source
+    //   .pipeTo(broadcast.writable, {
+    //     signal: broadcast.signal,
+    //   })
+    //   .then(
+    //     () => {},
+    //     (error) => {}
+    //   )
+    return broadcast
+  }
+  /**
+   * @param {T} chunk
+   */
+  write(chunk) {
+    for (const channel of this.channels) {
+      channel.enqueue(chunk)
+    }
+  }
+  close() {
+    for (const channel of this.channels) {
+      channel.close()
+    }
+  }
+  /**
+   * @param {unknown} [reason]
+   */
+  abort(reason) {
+    for (const channel of this.channels) {
+      channel.error(reason)
+    }
+  }
+
+  /**
+   * @param {ReadableStreamDefaultController<T>} channel
+   */
+  async cancel(channel) {
+    this.channels.delete(channel)
+    if (this.channels.size === 0) {
+      this.#controller.abort()
+    }
+  }
+
+  #controller
+  #closed
+  /**
+   * @param {Set<ReadableStreamDefaultController<T>>} channels
+   */
+  constructor(channels = new Set()) {
+    this.#closed = promise()
+    this.#controller = new AbortController()
+    this.writable = new WritableStream(this)
+    this.channels = channels
+
+    this.signal.addEventListener(
+      'abort',
+      () => this.abort(this.signal.reason),
+      { once: true }
+    )
+  }
+  get closed() {
+    return this.#closed.promise
+  }
+  get signal() {
+    return this.#controller.signal
+  }
+  /**
+   *
+   * @param {ReadableStream<T>} source
+   */
+  async pipeInto(source) {
+    const reader = source.getReader()
+    this.signal.addEventListener('abort', () => reader.cancel(), { once: true })
+    try {
+      while (!this.signal.aborted) {
+        const { done, value } = await reader.read()
+        if (done) {
+          break
+        }
+        this.write(value)
+      }
+    } finally {
+      await reader.cancel()
+      this.#closed.send(undefined)
+    }
+  }
+  fork() {
+    const { channels } = this
+    /** @type {ReadableStreamDefaultController<T>} */
+    let channel
+    return new ReadableStream({
+      start: (controller) => {
+        channel = controller
+        channels.add(channel)
+      },
+      cancel: () => {
+        this.cancel(channel)
+      },
+    })
+  }
 }

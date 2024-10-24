@@ -102,4 +102,7 @@ class Remote {
   transact(changes) {
     return transact(this, changes)
   }
+  toJSON() {
+    return this
+  }
 }

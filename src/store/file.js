@@ -1,8 +1,8 @@
 import * as LMDB from '@canvas-js/okra-lmdb'
 import * as Store from './okra.js'
-export * as Store from './okra.js'
 import { fileURLToPath } from 'node:url'
-import { Task } from 'datalogia'
+
+export * from './okra.js'
 
 /**
  * Opens a database instance at the given URL. If the URL is not provided or

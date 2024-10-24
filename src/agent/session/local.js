@@ -1,9 +1,7 @@
 import * as Type from '../type.js'
-import * as Query from '../query.js'
 import * as DB from 'datalogia'
 import * as Subscription from '../subscription.js'
-import { Task } from 'datalogia'
-import { id, refer } from 'merkle-reference'
+import { refer } from '../../datum/reference.js'
 import { promise } from '../sync.js'
 
 /**
@@ -61,7 +59,13 @@ class LocalSource extends ReadableStream {
         while (true) {
           // Wait for the view to become stale and then re-run a query.
           await this.stale
+          if (this.cancelled) {
+            return
+          }
           const selection = await DB.query(this.session.store, this.query)
+          if (this.cancelled) {
+            return
+          }
 
           // Setup a signal to be notified when the view becomes stale.
           this.stale = promise()
@@ -76,10 +80,12 @@ class LocalSource extends ReadableStream {
         }
       },
       cancel: () => {
+        this.cancelled = true
         this.session.queue.delete(this.stale)
       },
     })
-    this.revision = refer([])
+    this.cancelled = false
+    this.revision = refer(/** @type {Type.Selection<Select>[]} */ ([]))
     this.query = options.query
     this.session = options.session
     this.stale = promise()
@@ -95,18 +101,18 @@ class LocalSource extends ReadableStream {
 export function* transact(session, changes) {
   const commit = yield* DB.transact(session.store, changes)
   // Broadcast commit to all the queued signals.
-  yield* broadcast(session, commit)
+  yield* publish(session, commit)
 
   return commit
 }
 
 /**
- * Forks tasks for all active subscription views and returns them.
+ * Publishes commit to all the queued signals.
  *
  * @param {Local} session
  * @param {Type.Commit} commit
  */
-export function* broadcast(session, commit) {
+export function* publish(session, commit) {
   const [...queue] = session.queue
   session.queue.clear()
   for (const signal of queue) {
@@ -142,5 +148,9 @@ class Local {
    */
   transact(changes) {
     return transact(this, changes)
+  }
+
+  toJSON() {
+    return this
   }
 }

@@ -1,10 +1,21 @@
-import { id } from 'merkle-reference'
 import * as DB from 'datalogia'
 import * as Query from './agent/query.js'
-export * from './agent/type.js'
 import * as Type from './agent/type.js'
 import * as Local from './agent/session/local.js'
 import * as Remote from './agent/session/remote.js'
+import { of as refer } from './datum/reference.js'
+export * from './agent/type.js'
+
+export { variable } from './agent/query.js'
+
+export { refer }
+
+/**
+ * Entity where we store synopsys related state.
+ */
+export const synopsys = refer({ synopsys: {} })
+
+export const _ = DB._
 
 /**
  * @typedef {Type.Variant<{
@@ -39,7 +50,7 @@ export function* open(options) {
  */
 export function* subscribe(agent, query) {
   const bytes = yield* Query.toBytes(query)
-  const key = id(bytes)
+  const key = refer(bytes).toString()
   const subscription = agent.subscriptions.get(key)
   if (!subscription) {
     const subscription = yield* agent.session.subscribe(query)
@@ -83,5 +94,9 @@ export class AgentView {
    */
   subscribe(query) {
     return subscribe(this, query)
+  }
+
+  toJSON() {
+    return this
   }
 }

@@ -1,10 +1,23 @@
 import * as DB from 'datalogia'
-import * as Store from './store/okra.js'
-import { Link, Task } from 'datalogia'
-import { Response } from './http.js'
+import * as Memory from './store/memory.js'
+import * as Store from './store/file.js'
+import { Task } from 'datalogia'
 import * as Session from './session.js'
 import * as JSON from '@ipld/dag-json'
 export * as DB from 'datalogia'
+import * as Agent from './agent.js'
+import * as Reference from './datum/reference.js'
+import * as Query from './agent/query.js'
+import { refer, synopsys } from './agent.js'
+import { toEventSource } from './agent/selection.js'
+import { broadcast } from './agent/sync.js'
+import * as DAG from './agent/dag.js'
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
 
 /**
  * Connects to the  service by opening the underlying store.
@@ -14,12 +27,18 @@ export * as DB from 'datalogia'
  * @returns {Task.Task<MutableSelf, Error>}
  */
 export const open = function* (url, options) {
-  const store = yield* Store.open(url, options)
+  const store =
+    url.protocol === 'memory:'
+      ? yield* Memory.open()
+      : yield* Store.open(url, options)
+
+  const agent = yield* Agent.open({ local: { store } })
   const { id } = yield* Store.status(store)
   return {
     id,
+    agent,
     source: store,
-    sessions: new Map(),
+    subscriptions: new Map(),
   }
 }
 
@@ -33,167 +52,127 @@ export const close = function* (self) {
 }
 
 /**
+ *
+ * @param {MutableSelf} self
+ * @param {Request} request
+ */
+export const request = function* (self, request) {
+  switch (request.method) {
+    case 'OPTIONS':
+      return new Response(null, {
+        status: 204,
+        statusText: 'YOLO',
+        headers: CORS,
+      })
+    case 'PUT':
+      return yield* put(self, request)
+    case 'PATCH':
+      return yield* patch(self, request)
+    case 'GET':
+      return yield* get(self, request)
+    default:
+      return error(
+        { message: 'Method not allowed' },
+        { status: 405, statusText: 'Method not allowed' }
+      )
+  }
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ */
+export function* patch(self, request) {
+  const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
+  const changes = /** @type {DB.Transaction} */ (yield* DAG.decode(JSON, body))
+  const commit = yield* DB.transact(self.source, changes)
+  return ok({
+    before: commit.before.id,
+    after: commit.after.id,
+  })
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ */
+export function* put(self, request) {
+  const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
+  try {
+    const query = refer(yield* Query.fromBytes(body))
+    if (!self.subscriptions.get(query.toString())) {
+      // Check if we have this query stored in the database already.
+      const selection = yield* DB.query(self.source, {
+        select: {},
+        where: [{ Case: [synopsys, 'synopsys/query', query] }],
+      })
+
+      // if we have not found match we store the query into a database.
+      // we probably want to store actual query into a blob but this will do
+      // for now.
+      if (selection.length === 0) {
+        yield* DB.transact(self.source, [
+          { Assert: [synopsys, 'synopsys/query', query] },
+          { Assert: [query, 'blob/content', body] },
+        ])
+      }
+    }
+
+    // Redirect to the subscription URL.
+    return new Response(null, {
+      status: 303,
+      headers: {
+        ...CORS,
+        Location: new URL(`/${query}`, request.url).toString(),
+      },
+    })
+  } catch (reason) {
+    return error(
+      { message: /** @type {Error} */ (reason).message },
+      {
+        status: 400,
+        statusText: 'Invalid query',
+      }
+    )
+  }
+}
+
+/**
  * @typedef {object} Self
  * @property {string} id - Current hash of the store.
  * @property {DB.API.Querier} source - The underlying data store.
- * @property {Map<string, Session.Session>} sessions - Active query sessions.
+ * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
+ * @property {Agent.Session} agent - The agent session.
  *
  * @typedef {Self & {source: DB.API.Transactor<Store.Commit>}} MutableSelf
  */
 
 /**
- * Decodes body of the request as DAG-JSON which unlike regular JSON supports
- * binary data and IPLD links.
- *
- * @param {Request} request
- */
-const decodeBody = function* (request) {
-  const buffer = yield* Task.wait(request.arrayBuffer())
-  return JSON.decode(new Uint8Array(buffer))
-}
-
-/**
- * Opens a session for the query enclosed in an JSON HTTP request.
- *
+ * @template {DB.Selector} [Select=DB.Selector]
  * @param {Self} self
- * @param {Request} request
+ * @param {Agent.Reference<Agent.Query<Select>>} id
  */
-export const openSession = function* (self, request) {
-  const { ok: query, error: parseError } = yield* Task.perform(
-    decodeBody(request)
-  ).result()
-
-  if (parseError) {
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: 'Bad request payload, expected DAG-JSON',
-        },
-      }),
-      {
-        status: 400,
-        statusText: 'Invalid payload',
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
-  }
-
-  const id = Link.of(query).toString()
-  if (!self.sessions.has(id)) {
-    const { ok: session, error } = yield* Task.perform(
-      Session.open({
-        query,
-        source: self.source,
-      })
-    ).result()
-
-    if (error) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            message: error.message,
-          },
-        }),
-        {
-          status: 400,
-          statusText: 'Invalid query',
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          },
-        }
-      )
-    }
-
-    // Add the session to the list of active sessions.
-    self.sessions.set(id, session)
-  }
-
-  // Redirect to the subscription URL.
-  return new Response(null, {
-    status: 303,
-    headers: {
-      Location: new URL(`/${id}`, request.url).toString(),
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
-}
-
-/**
- * Applies a transaction encoded in HTTP request as JSON and notifies all
- * the affected subscribers about the changes.
- *
- * @param {MutableSelf} self
- * @param {Request} request
- */
-export const publish = function* (self, request) {
-  const result = yield* Task.perform(decodeBody(request)).result()
-  if (result.error) {
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: 'Bad request payload, expected JSON',
-        },
-      }),
-      {
-        status: 400,
-        statusText: 'Invalid payload',
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
-  }
-
-  const { ok: commit, error } = yield* Task.perform(
-    transact(self, result.ok)
-  ).result()
-
-  if (commit) {
-    return new Response(
-      JSON.encode({
-        ok: {
-          before: { id: commit.before.id },
-          after: { id: commit.after.id },
-        },
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
+export const subscribe = function* (self, id) {
+  const channel = self.subscriptions.get(id.toString())
+  if (channel) {
+    return channel
   } else {
-    return new Response(
-      JSON.encode({
-        error: { message: error?.message ?? 'Transaction failed' },
-      }),
-      {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
+    const content = Agent.variable()
+    const [selection] = yield* DB.query(self.source, {
+      select: { content },
+      where: [{ Case: [id, 'blob/content', content] }],
+    })
+    const bytes = selection?.content
+    const query = bytes ? yield* Query.fromBytes(bytes) : null
+    const subscription = query ? yield* self.agent.subscribe(query) : null
+    const source = subscription ? toEventSource(subscription) : null
+    const channel = source ? broadcast(source) : null
+    if (channel) {
+      self.subscriptions.set(id.toString(), channel)
+      // Remove the subscription when the channel is closed.
+      channel.closed.then(() => self.subscriptions.delete(id.toString()))
+    }
+    return channel
   }
 }
 
@@ -204,93 +183,65 @@ export const publish = function* (self, request) {
  * @param {Self} self
  * @param {Request} request
  */
-export const subscribe = function* (self, request) {
+export const get = function* (self, request) {
   // If we land on the root URL we just return an empty response.
   const url = new URL(request.url)
   if (url.pathname === '/') {
-    return new Response(
-      JSON.stringify({
-        ok: {},
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
+    return ok({}, { status: 404 })
   }
 
-  // Otherwise we assume this is a query session URL in which case we resolve
-  // the session and create a new subscription.
   const id = url.pathname.slice(1)
-  const session = self.sessions.get(id)
-
-  // If we did not find the session we return 404.
-  if (!session) {
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: `Subscription not found at: ${url.pathname}`,
-        },
-      }),
-      {
-        status: 404,
-        statusText: 'Subscription not found',
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      }
-    )
+  const query = Reference.fromString(id, null)
+  if (query == null) {
+    return error({ message: `Query ${id} was not found` }, { status: 404 })
   }
+  const source = yield* subscribe(self, query)
 
-  return new Response(yield* Session.subscribe(session), {
-    status: 200,
+  if (source) {
+    return new Response(source.fork(), {
+      status: 200,
+      headers: {
+        ...CORS,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  } else {
+    return error({ message: `Query ${id} was not found` }, { status: 404 })
+  }
+}
+
+/**
+ * @typedef {object} HTTPOptions
+ * @property {number} [status]
+ * @property {string} [statusText]
+ * @property {Record<string, string>} [headers]
+ */
+/**
+ * @param {{}} ok
+ * @param {HTTPOptions} [options]
+ */
+export const ok = (ok, options) => response({ ok }, options)
+
+/**
+ * @param {{}} error
+ * @param {HTTPOptions} [options]
+ */
+export const error = (error, options) =>
+  response({ error }, { status: 500, ...options })
+
+/**
+ * @param {Agent.Result} result
+ * @param {HTTPOptions} [options]
+ */
+const response = (result, { status = 200, statusText, headers } = {}) =>
+  new Response(JSON.stringify(result), {
+    status,
+    ...(statusText ? { statusText } : {}),
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      ...CORS,
+      'Content-Type': 'application/json',
+      ...headers,
     },
   })
-}
-
-/**
- * Notifies all of the active session about the changes in the store.
- *
- * @param {Self} self
- */
-export const notify = function* (self) {
-  const pending = []
-  for (const session of self.sessions.values()) {
-    // We may have subscriptions without any open connections we skip those
-    // as there is no point in recomputing the state for those.
-    if (session.subscriber.size > 0) {
-      pending.push(Task.perform(Session.notify(session)))
-    }
-  }
-
-  yield* Task.wait(Promise.all(pending))
-}
-
-/**
- * @param {MutableSelf} self
- * @param {DB.API.Transaction} instructions
- */
-export const transact = function* (self, instructions) {
-  const commit = yield* DB.transact(self.source, instructions)
-  if (commit.before.id !== commit.after.id) {
-    self.id = commit.after.id
-    yield* notify(self)
-  }
-
-  return commit
-}

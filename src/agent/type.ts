@@ -47,6 +47,8 @@ export interface Session {
   ): Task<Subscription<Select>, Error>
 
   transact(changes: Transaction): Task<Commit, Error>
+
+  toJSON(): object
 }
 
 export interface Subscription<Select extends Selector = Selector>
