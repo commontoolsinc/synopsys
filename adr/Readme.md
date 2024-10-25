@@ -5,6 +5,3 @@ This directory contains an architecture decision record (ADR) documents that cap
 Have a look [here](https://github.com/joelparkerhenderson/architecture_decision_record) for more information.
 
 Use [template](./000-template.md) as a template.
-
-
-
