@@ -1,21 +1,17 @@
-import * as DB from 'datalogia'
 import * as Query from './agent/query.js'
 import * as Type from './agent/type.js'
 import * as Local from './agent/session/local.js'
 import * as Remote from './agent/session/remote.js'
-import { of as refer } from './datum/reference.js'
+import { refer } from './datum/reference.js'
+import $, { variable } from './agent/query/scope.js'
+
+export { _ } from 'datalogia'
 export * from './agent/type.js'
-
-export { variable } from './agent/query.js'
-
-export { refer }
-
+export { refer, $, variable, Query }
 /**
  * Entity where we store synopsys related state.
  */
 export const synopsys = refer({ synopsys: {} })
-
-export const _ = DB._
 
 /**
  * @typedef {Type.Variant<{
@@ -55,6 +51,8 @@ export function* subscribe(agent, query) {
   if (!subscription) {
     const subscription = yield* agent.session.subscribe(query)
     agent.subscriptions.set(key, subscription)
+    // Remove the subscription when it closes.
+    subscription.closed.then(() => agent.subscriptions.delete(key))
     return subscription
   }
 
@@ -64,12 +62,9 @@ export function* subscribe(agent, query) {
 /**
  *
  * @param {Agent} agent
- * @param {DB.Transaction} transaction
- * @returns
+ * @param {Type.Transaction} changes
  */
-export function* transact(agent, transaction) {
-  return yield* DB.transact(agent.session, transaction)
-}
+export const transact = (agent, changes) => agent.session.transact(changes)
 
 export class AgentView {
   /**
@@ -82,7 +77,7 @@ export class AgentView {
   }
 
   /**
-   * @param {DB.Transaction} changes
+   * @param {Type.Transaction} changes
    */
   transact(changes) {
     return transact(this, changes)

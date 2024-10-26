@@ -2,7 +2,6 @@ import * as DB from 'datalogia'
 import * as Memory from './store/memory.js'
 import * as Store from './store/file.js'
 import { Task } from 'datalogia'
-import * as Session from './session.js'
 import * as JSON from '@ipld/dag-json'
 export * as DB from 'datalogia'
 import * as Agent from './agent.js'
@@ -30,7 +29,8 @@ export const open = function* (url, options) {
   const store =
     url.protocol === 'memory:'
       ? yield* Memory.open()
-      : yield* Store.open(url, options)
+      : /* c8 ignore next 3 */
+        yield* Store.open(url, options)
 
   const agent = yield* Agent.open({ local: { store } })
   const { id } = yield* Store.status(store)
@@ -73,7 +73,7 @@ export const request = function* (self, request) {
     default:
       return error(
         { message: 'Method not allowed' },
-        { status: 405, statusText: 'Method not allowed' }
+        { status: 405, statusText: 'Method Not Allowed' }
       )
   }
 }
@@ -157,7 +157,7 @@ export const subscribe = function* (self, id) {
   if (channel) {
     return channel
   } else {
-    const content = Agent.variable()
+    const { content } = Agent.$
     const [selection] = yield* DB.query(self.source, {
       select: { content },
       where: [{ Case: [id, 'blob/content', content] }],
@@ -165,7 +165,7 @@ export const subscribe = function* (self, id) {
     const bytes = selection?.content
     const query = bytes ? yield* Query.fromBytes(bytes) : null
     const subscription = query ? yield* self.agent.subscribe(query) : null
-    const source = subscription ? toEventSource(subscription) : null
+    const source = subscription ? toEventSource(subscription.fork()) : null
     const channel = source ? broadcast(source) : null
     if (channel) {
       self.subscriptions.set(id.toString(), channel)

@@ -71,20 +71,26 @@ export const from = (value) => {
  * @returns {Reference<T>|Implicit}
  */
 export const fromString = (source, implicit) => {
-  const bytes = base32.decode(source)
-  if (
-    bytes[0] === CODE &&
-    bytes[1] === SHA256_CODE &&
-    bytes[2] === DIGEST_SIZE &&
-    bytes.length === SIZE
-  ) {
-    return Reference.fromDigest(bytes.subarray(3))
-  } else if (implicit === undefined) {
-    throw new TypeError(
-      `Invalid reference, expected a reference instead got ${source}`
-    )
-  } else {
-    return implicit
+  try {
+    const bytes = base32.decode(source)
+    if (
+      bytes[0] === CODE &&
+      bytes[1] === SHA256_CODE &&
+      bytes[2] === DIGEST_SIZE &&
+      bytes.length === SIZE
+    ) {
+      return Reference.fromDigest(bytes.subarray(3))
+    } else {
+      throw new ReferenceError(
+        `Invalid reference, expected a reference instead got ${source}`
+      )
+    }
+  } catch (error) {
+    if (implicit === undefined) {
+      throw new ReferenceError(`Invalid reference ${source}`)
+    } else {
+      return implicit
+    }
   }
 }
 

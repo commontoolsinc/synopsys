@@ -153,7 +153,7 @@ export const testScan = {
         assert.deepEqual(tx.before.id, 'NcuV3vKyQgcxiZDMdE37fv')
         assert.deepEqual(yield* Memory.status(db), tx.after)
       } finally {
-        FS.rmdirSync(url, { recursive: true })
+        FS.rmSync(url, { recursive: true })
         yield* Memory.close(db)
       }
     }),

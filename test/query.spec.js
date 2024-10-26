@@ -1,104 +1,72 @@
-import { transact, query, Var, match, not } from 'datalogia'
-import { refer, Task } from 'synopsys'
+import { Task, Agent, refer, variable, $ } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
  * @type {import('entail').Suite}
  */
 export const testQuery = {
-  selector: (assert) =>
-    Task.spawn(function* () {
-      const { db } = yield* open()
+  variables: (assert) => {
+    const { a } = $
+    const { b } = $
 
-      const list = Var.link()
-      const title = Var.string()
-      const name = Var.string()
-      const done = Var.boolean()
-      const todo = Var.link()
+    assert.equal(a, $.a)
+    assert.equal(a.toString(), `?a`)
+    assert.equal(b.toString(), `?b`)
 
-      const matches = yield* query(db, {
-        select: {
-          name,
-          todo: [
-            {
-              title,
-              done,
-            },
-          ],
-        },
-        where: [
-          match([list, 'name', name]),
-          match([list, 'todo', todo]),
-          match([todo, 'title', title]),
+    assert.notDeepEqual(a, b)
 
-          match([todo, 'done', done]).or(
-            not(match([todo, 'done', done])).and({ Is: [done, false] })
-          ),
-        ],
-      })
+    assert.deepEqual(Symbol.toStringTag in a && a[Symbol.toStringTag], '?a')
+    const inspect = Symbol.for('nodejs.util.inspect.custom')
+    assert.deepEqual(
+      inspect in a && typeof a[inspect] === 'function' && a[inspect](),
+      '?a'
+    )
+  },
+  'new scope': (assert) => {
+    const $$ = new $()
 
-      assert.deepEqual(matches, [
-        {
-          name: 'Groceries',
-          todo: [
-            { title: 'Buy Bread', done: true },
-            { title: 'Buy Eggs', done: false },
-            { title: 'Buy Milk', done: false },
-          ],
-        },
-        {
-          name: 'Chores',
-          todo: [
-            { title: 'Do Laundry', done: false },
-            { title: 'Do Dishes', done: false },
-          ],
-        },
-      ])
-    }),
-}
+    const { newScopeVar } = $$
+    // Just making sure that newScopVar is not the first one
+    $.oldScopeVar
 
-function* open() {
-  const db = yield* Memory.open()
+    assert.notDeepEqual(newScopeVar, $.newScopeVar)
+  },
 
-  const groceries = refer({ name: 'Groceries' })
-  const chores = refer({ name: 'Chores' })
+  'symbol variable': (assert) => {
+    const a = $[Symbol.for('foo')]
 
-  const milk = refer({ title: 'Buy Milk' })
-  const eggs = refer({ title: 'Buy Eggs' })
-  const bread = refer({ title: 'Buy Bread', done: true })
+    assert.equal(a.toString(), `?@foo`)
 
-  const laundry = refer({ title: 'Do Laundry' })
-  const dishes = refer({ title: 'Do Dishes' })
+    const $$ = new $()
+    const b = $$[Symbol()]
+    assert.equal(b.toString(), `?@1`)
+  },
+  'prototype variable': (assert) => {
+    const { prototype } = $
+    assert.equal(prototype.toString(), `?prototype`)
+  },
+  'has on scope': (assert) => {
+    const $$ = new $()
+    assert.equal('a' in $$, false)
+    const { a } = $$
+    assert.equal(String(a), `?a`)
+    assert.equal('a' in $$, true)
 
-  const tx = yield* transact(db, [
-    { Assert: [groceries, 'name', 'Groceries'] },
-    { Assert: [groceries, 'todo', milk] },
-    { Assert: [milk, 'title', 'Buy Milk'] },
-    { Assert: [groceries, 'todo', eggs] },
-    { Assert: [eggs, 'title', 'Buy Eggs'] },
-    { Assert: [groceries, 'todo', bread] },
-    { Assert: [bread, 'title', 'Buy Bread'] },
-    { Assert: [bread, 'done', true] },
+    assert.deepEqual(Object.getOwnPropertyNames($$), ['a', 'prototype'])
 
-    { Assert: [chores, 'name', 'Chores'] },
-    { Assert: [chores, 'todo', laundry] },
-    { Assert: [laundry, 'title', 'Do Laundry'] },
-    { Assert: [chores, 'todo', dishes] },
-    { Assert: [dishes, 'title', 'Do Dishes'] },
-  ])
+    assert.equal($$.prototype.toString(), `?prototype`)
 
-  const cause = refer(tx.cause)
+    assert.deepEqual(Object.getOwnPropertyNames($$), ['a', 'prototype'])
+  },
 
-  return {
-    db,
-    cause,
-    groceries,
-    chores,
-    milk,
-    eggs,
-    bread,
-    laundry,
-    dishes,
-    tx,
-  }
+  'scope can be forked': (assert) => {
+    const main = new $()
+    const { a } = main
+    const { b } = main
+
+    const fork = main()
+
+    assert.equal(b, fork.b)
+    assert.notEqual(main.c, fork.c)
+  },
 }

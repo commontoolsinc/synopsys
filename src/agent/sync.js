@@ -2,39 +2,59 @@ import * as Task from 'datalogia/task'
 import * as Type from './type.js'
 
 /**
+ * Represents CSP style channel similar to [one in rust]
+ * (https://doc.rust-lang.org/std/sync/mpsc/fn.channel.html) or
+ * clojure's [core.async](https://clojure.org/guides/async_walkthrough) but
+ * strictly with a buffer of 0 meaning all reads are blocked on corresponding
+ * writes.
+ *
  * @template T
- * @implements {Type.SignalController<T>}
+ * @template {Error} Abort
+ * @implements {Type.Channel<T, Abort>}
  * @extends {Promise<T>}
  */
-class PromiseController {
+class Channel {
   /** @type {(value:T) => void} */
   // @ts-expect-error - set in the constructor
-  #resolve
-  /** @type {(error:Error) => void} */
+  #write
+  /** @type {(error?:Error) => void} */
   // @ts-expect-error - set in the constructor
-  #reject
+  #cancel
+  #promise
   constructor() {
-    this.promise = new Promise((resolve, reject) => {
-      this.#resolve = resolve
-      this.#reject = reject
+    this.#promise = new Promise((write, cancel) => {
+      this.#write = write
+      this.#cancel = cancel
     })
   }
 
   /**
    * @param {T} value
    */
-  send(value) {
-    this.#resolve(value)
+  write(value) {
+    this.#write(value)
+    this.#promise = new Promise((write, cancel) => {
+      this.#write = write
+      this.#cancel = cancel
+    })
   }
+
   /**
-   * @param {Error} error
+   * @returns {Task.Invocation<T>}
    */
-  abort(error) {
-    this.#reject(error)
+  read() {
+    return Task.perform(Task.wait(this.#promise))
+  }
+
+  /**
+   * @param {Abort} [error]
+   */
+  cancel(error) {
+    this.#cancel(error)
   }
 }
 
-export const promise = () => new PromiseController()
+export const channel = () => new Channel()
 
 /**
  * @template In, Out, State
@@ -82,117 +102,135 @@ export const transform = (source, operator) => {
 /**
  * @template T
  * @param {ReadableStream<T>} source
+ * @returns {Type.BroadcastStream<T>}
  */
-export const broadcast = (source) => BroadcastStream.from(source)
+export const broadcast = (source) => new BroadcastStream(source)
 
 /**
  * @template T
+ * @implements {Type.BroadcastStream<T>}
  * @implements {UnderlyingSink<T>}
  */
 export class BroadcastStream {
+  // #abort
+  #closed
+  #ports
+  #source
+  #task
   /**
-   * @template T
    * @param {ReadableStream<T>} source
+   * @param {Set<ReadableStreamDefaultController<T>>} [ports]
    */
-  static from(source) {
-    const broadcast = new BroadcastStream()
-    broadcast.pipeInto(source)
-    // source
-    //   .pipeTo(broadcast.writable, {
-    //     signal: broadcast.signal,
-    //   })
-    //   .then(
-    //     () => {},
-    //     (error) => {}
-    //   )
-    return broadcast
+  constructor(source, ports = new Set()) {
+    this.#source = source.getReader()
+    this.#closed = channel()
+    this.#ports = ports
+    // this.#abort = new AbortController()
+    /** @type {Promise<undefined>} */
+    this.closed = this.#closed.read()
+    this.aborted = false
+
+    // // we abort the broadcast when abort signal is triggered.
+    // this.signal.addEventListener(
+    //   'abort',
+    //   () => this.abort(this.signal.reason),
+    //   { once: true }
+    // )
+    this.#task = Task.perform(BroadcastStream.poll(this))
   }
+
+  // get signal() {
+  //   return this.#abort.signal
+  // }
+
   /**
+   * Publishes chunk to all connected ports.
+   *
    * @param {T} chunk
    */
   write(chunk) {
-    for (const channel of this.channels) {
-      channel.enqueue(chunk)
+    for (const port of this.#ports) {
+      port.enqueue(chunk)
     }
   }
+  /**
+   * Closes all connected ports.
+   */
   close() {
-    for (const channel of this.channels) {
-      channel.close()
+    for (const port of this.#ports) {
+      port.close()
     }
+    this.#ports.clear()
+    this.#closed.write(undefined)
   }
   /**
    * @param {unknown} [reason]
    */
   abort(reason) {
-    for (const channel of this.channels) {
-      channel.error(reason)
+    for (const port of this.#ports) {
+      port.error(reason)
+    }
+    this.#ports.clear()
+    this.#source.cancel(reason)
+    this.#closed.write(undefined)
+  }
+
+  /**
+   * @param {ReadableStreamDefaultController<T>} port
+   */
+  connect(port) {
+    this.#ports.add(port)
+  }
+  /**
+   * @param {ReadableStreamDefaultController<T>} port
+   */
+  disconnect(port) {
+    this.#ports.delete(port)
+    // If last port was disconnected we abort this stream.
+    if (this.#ports.size === 0) {
+      // this.#abort.abort()
+      this.abort()
     }
   }
 
   /**
-   * @param {ReadableStreamDefaultController<T>} channel
+   * @template T
+   * @param {BroadcastStream<T>} broadcast
    */
-  async cancel(channel) {
-    this.channels.delete(channel)
-    if (this.channels.size === 0) {
-      this.#controller.abort()
-    }
-  }
-
-  #controller
-  #closed
-  /**
-   * @param {Set<ReadableStreamDefaultController<T>>} channels
-   */
-  constructor(channels = new Set()) {
-    this.#closed = promise()
-    this.#controller = new AbortController()
-    this.writable = new WritableStream(this)
-    this.channels = channels
-
-    this.signal.addEventListener(
-      'abort',
-      () => this.abort(this.signal.reason),
-      { once: true }
-    )
-  }
-  get closed() {
-    return this.#closed.promise
-  }
-  get signal() {
-    return this.#controller.signal
-  }
-  /**
-   *
-   * @param {ReadableStream<T>} source
-   */
-  async pipeInto(source) {
-    const reader = source.getReader()
-    this.signal.addEventListener('abort', () => reader.cancel(), { once: true })
+  static *poll(broadcast) {
     try {
-      while (!this.signal.aborted) {
-        const { done, value } = await reader.read()
+      // Forward all chunks from the underlying source to all the connected
+      // ports.
+      while (true) {
+        const { done, value } = yield* Task.wait(broadcast.#source.read())
         if (done) {
           break
         }
-        this.write(value)
+        broadcast.write(value)
       }
-    } finally {
-      await reader.cancel()
-      this.#closed.send(undefined)
+      // When done close the broadcast channel and all connected ports.
+      broadcast.close()
+    } catch (reason) {
+      // // If we encountered exception during polling process we abort with
+      // // the reason.
+      // if (!broadcast.signal.aborted) {
+      //   broadcast.#abort.abort(reason)
+      // }
+      broadcast.abort(reason)
     }
   }
+
   fork() {
-    const { channels } = this
+    const ports = this.#ports
     /** @type {ReadableStreamDefaultController<T>} */
-    let channel
+    let port
     return new ReadableStream({
       start: (controller) => {
-        channel = controller
-        channels.add(channel)
+        port = controller
+        ports.add(port)
       },
       cancel: () => {
-        this.cancel(channel)
+        this.disconnect(port)
       },
     })
   }

@@ -1,12 +1,12 @@
 import * as Type from '../type.js'
 import * as Query from '../query.js'
 import * as DB from 'datalogia'
-import * as Subscription from '../subscription.js'
 import * as Selection from '../selection.js'
 import { Task } from 'datalogia'
 import * as DAG from '../dag.js'
 import * as JSON from '@ipld/dag-json'
 import { of as refer } from '../../datum/reference.js'
+import { broadcast } from '../sync.js'
 
 /**
  * @typedef {object} Open
@@ -50,7 +50,7 @@ export function* subscribe(session, query) {
     /** @type {ReadableStream<Type.Selection<Select>[]>} */
     (Selection.fromEventSource(body))
 
-  return yield* Subscription.open({ query, source })
+  return broadcast(source)
 }
 
 /**

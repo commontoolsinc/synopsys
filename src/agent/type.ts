@@ -6,6 +6,7 @@ export type {
   Query,
   Querier,
   Transactor,
+  Transaction,
   InferBindings as Selection,
   Result,
   Variant,
@@ -19,6 +20,7 @@ import type {
   InferBindings as Selection,
   Transaction,
   Query,
+  Variable,
 } from 'datalogia'
 import type { Invocation, Task } from 'datalogia/task'
 import type { Commit, Database as Store } from '../store/okra.js'
@@ -52,17 +54,40 @@ export interface Session {
 }
 
 export interface Subscription<Select extends Selector = Selector>
-  extends ReadableStream<Selection<Select>[]> {
-  query: Query<Select>
+  extends BroadcastStream<Selection<Select>[]> {}
 
-  poll(): Task<Selection<Select>[], Error>
-}
-
-export interface SignalController<T> {
-  send(value: T): void
+export interface BroadcastStream<T> {
+  /**
+   * Creates a readable stream that will receive data from the underlying
+   * stream from the point of forking.
+   *
+   * When all the forks are closed the underlying source stream will be
+   * canceled.
+   */
+  fork(): ReadableStream<T>
+  /**
+   * Aborts this stream and closes all of its forks.
+   */
   abort(reason: Error): void
+
+  /**
+   * A promise that resolves when this stream is closed.
+   */
+  closed: Promise<undefined>
 }
 
-export interface PromiseController<T> extends SignalController<T> {
-  promise: Promise<T>
+export interface Channel<T, Abort extends Error>
+  extends Reader<T, Abort>,
+    Writer<T, Abort> {}
+export interface Reader<T, Abort extends Error> {
+  read(): Invocation<T, Abort>
+}
+export interface Writer<T, Abort extends Error> {
+  write(value: T): void
+  cancel(reason?: Abort): void
+}
+
+export interface Scope extends Record<PropertyKey, Variable<any>> {
+  new (): Scope
+  (): Scope
 }

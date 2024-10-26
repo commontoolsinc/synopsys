@@ -1,4 +1,5 @@
-import { Task, refer } from 'synopsys'
+import { Agent, Task, refer } from 'synopsys'
+import * as Store from 'synopsys/store/file'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
 
@@ -12,8 +13,11 @@ export const testLMDB = {
       const json = new URL(`./test-flat-file.json`, import.meta.url)
       yield* Task.wait(FS.rm(url, { recursive: true, force: true }))
       // yield* Task.wait(FS.rm(json, { recursive: true, force: true }))
-      const synopsys = yield* Service.open(url, {
+      const store = yield* Store.open(url, {
         mapSize: 3 * 1024 * 1024 * 1024,
+      })
+      const agent = yield* Agent.open({
+        local: { store },
       })
 
       const size = 1
@@ -24,7 +28,7 @@ export const testLMDB = {
         console.log(`Importing ${count}...`)
         const batch = [...generateBatch(count, size)]
         const { ok, error } = yield* Task.perform(
-          Service.transact(synopsys, batch)
+          Agent.transact(agent, batch)
         ).result()
 
         if (error) {

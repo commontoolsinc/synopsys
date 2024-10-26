@@ -1,12 +1,11 @@
-import * as DB from 'datalogia'
 import { Task, Agent, refer, variable } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
  * @type {import('entail').Suite}
  */
-export const testQuery = {
-  query: (assert) =>
+export const testMatch = {
+  'text/like': (assert) =>
     Task.spawn(function* () {
       const store = yield* Memory.open()
       const agent = yield* Agent.open({ local: { store } })
@@ -14,7 +13,7 @@ export const testQuery = {
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      yield* DB.transact(agent, [
+      yield* Agent.transact(agent, [
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
@@ -42,7 +41,8 @@ export const testQuery = {
         ],
       })
 
-      const initial = yield* subscription.poll()
+      const reader = subscription.fork().getReader()
+      const { value: initial } = yield* Task.wait(reader.read())
 
       assert.deepEqual(initial, [
         {
@@ -57,12 +57,12 @@ export const testQuery = {
         },
       ])
 
-      yield* DB.transact(agent, [
+      yield* Agent.transact(agent, [
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])
 
-      const updated = yield* subscription.poll()
+      const { value: updated } = yield* Task.wait(reader.read())
 
       assert.deepEqual(updated, [
         {

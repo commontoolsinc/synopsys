@@ -5,6 +5,7 @@ import * as JSON from '@ipld/dag-json'
 import * as DAG from './dag.js'
 import { Var } from 'datalogia'
 import { Reference } from 'merkle-reference'
+import Scope from './query/scope.js'
 
 /**
  * Takes JSON formatted query and return a query object with variables
@@ -22,17 +23,21 @@ export const fromJSON = function* (source) {
     )
   }
 
-  const { select, env } = yield* readSelect(
+  // Use a fresh variables environment for each query so that variable
+  // identifiers are agnostic to any prior queries.
+  const scope = new Scope()
+
+  const select = yield* readSelect(
     /** @type {{select?:unknown}} */ (source)?.select ?? {},
-    Object.create(null)
+    scope
   )
 
-  const { where } = yield* readWhere(
+  const where = yield* readWhere(
     /** @type {{where?:unknown}} */ (source)?.where,
-    env
+    scope
   )
 
-  return { select: /** @type {Select} */ (select), where }
+  return /** @type {Type.Query<Select>} */ ({ select, where })
 }
 
 /**
@@ -80,55 +85,41 @@ const isVariable = (source) =>
  * environment that contains all the referenced variables.
  *
  * @param {unknown} source
- * @param {DB.Variables} env
- * @returns {Task.Task<{select: DB.API.Selector, env: DB.Variables}, Error>}
+ * @param {DB.Variables} scope
+ * @returns {Task.Task<DB.API.Selector, Error>}
  */
 
-export const readSelect = function* (source, env) {
+export const readSelect = function* (source, scope) {
   if (source && typeof source === 'object') {
     if (Array.isArray(source)) {
       const [member] = source
       if (isVariable(member)) {
-        const vars = withVariable(env, member)
-        return {
-          /** @type {DB.API.Selector} */
-          select: [getVariable(vars, member)],
-          env: vars,
-        }
+        /** @type {DB.API.Selector} */
+        return [scope[toKey(member)]]
       } else if (isObject(member)) {
-        const { select, env: vars } = yield* readSelect(member, env)
-        return {
-          select: [select],
-          env: vars,
-        }
+        const select = yield* readSelect(member, scope)
+        return [select]
       } else {
-        return yield* Task.fail(
-          new Error(`Invalid query selector ${JSON.stringify(source)}`)
-        )
+        throw new Error(`Invalid query selector ${JSON.stringify(source)}`)
       }
     } else {
       const entries = []
-      let vars = env
       for (const [name, value] of Object.entries(source)) {
         if (isVariable(value)) {
-          vars = withVariable(vars, value)
-          entries.push([name, getVariable(vars, value)])
+          entries.push([name, scope[toKey(value)]])
         } else {
-          const { select, env } = yield* readSelect(value, vars)
+          const select = yield* readSelect(value, scope)
           entries.push([name, select])
-          vars = env
         }
       }
 
-      return { select: Object.fromEntries(entries), env: vars }
+      return Object.fromEntries(entries)
     }
   } else {
-    return yield* Task.fail(
-      new Error(
-        `.select must be an object or a tuple, instead got ${JSON.stringify(
-          source
-        )}`
-      )
+    throw new Error(
+      `.select must be an object or a tuple, instead got ${JSON.stringify(
+        source
+      )}`
     )
   }
 }
@@ -139,20 +130,18 @@ export const readSelect = function* (source, env) {
  * environment that contains all the referenced variables.
  *
  * @param {unknown} source
- * @param {DB.Variables} env
- * @returns {Task.Task<{where: DB.API.Clause[], env: DB.API.Variables}, Error>}
+ * @param {DB.Variables} scope
+ * @returns {Task.Task<DB.Where, Error>}
  */
 
-export const readWhere = function* (source, env) {
-  let vars = env
+export const readWhere = function* (source, scope) {
   if (Array.isArray(source)) {
     const where = []
     for (const clause of source) {
-      const { form, env } = yield* readForm(clause, vars)
+      const form = yield* readForm(clause, scope)
       where.push(form)
-      vars = env
     }
-    return { where, env: vars }
+    return where
   } else {
     throw new Error(
       `Invalid query, 'where' field must be an array of clause, instead got '${source}'`
@@ -168,43 +157,39 @@ export const readWhere = function* (source, env) {
  *
  * @template T
  * @param {T} source
- * @param {DB.Variables} env
- * @returns {Task.Task<{form: any, env: DB.Variables}, Error>}
+ * @param {DB.Variables} scope
+ * @returns {Task.Task<any, Error>}
  */
-export const readForm = function* (source, env) {
-  let vars = env
+export const readForm = function* (source, scope) {
   // If it is a variable we substitute it with an actual variable from the
   // environment.
   if (isVariable(source)) {
-    vars = withVariable(vars, source)
-    return { form: getVariable(vars, source), env: vars }
+    return scope[toKey(source)]
   }
   // If it is an array we recursively process each member of the array.
   else if (Array.isArray(source)) {
     const forms = []
     for (const member of source) {
-      const { form, env } = yield* readForm(member, vars)
+      const form = yield* readForm(member, scope)
       forms.push(form)
-      vars = env
     }
-    return { form: forms, env: vars }
+    return forms
   } else if (Reference.is(source)) {
-    return { form: source, env: vars }
+    return source
   }
   // If it is an object we recursively process each member pair.
   else if (isObject(source)) {
     const entries = []
     for (const [name, value] of Object.entries(source)) {
-      const { form, env } = yield* readForm(value, vars)
+      const form = yield* readForm(value, scope)
       entries.push([name, form])
-      vars = env
     }
 
-    return { form: Object.fromEntries(entries), env: vars }
+    return Object.fromEntries(entries)
   }
   // if it is anything else we just return it as is.
   else {
-    return { form: source, env: vars }
+    return source
   }
 }
 
@@ -220,35 +205,6 @@ const isObject = (source) => source != null && typeof source === 'object'
  * @returns
  */
 const toKey = (variable) =>
-  Var.is(variable) ? Var.id(variable) : `$${variable.slice(1)}`
+  `$${Var.is(variable) ? Var.id(variable) : variable.slice(1)}`
 
-/**
- * @template {`?${string}`} Var
- * @template {DB.Variables} Env
- * @param {Env} env
- * @param {Var} instance
- * @returns {Env & {[key in Var]: DB.API.Variable}}
- */
-export const withVariable = (env, instance) =>
-  env[toKey(instance)] ? env : { ...env, [toKey(instance)]: variable() }
-
-/**
- *
- * @param {DB.Variables} env
- * @param {DB.Variable|string} variable
- * @returns
- */
-export const getVariable = (env, variable) => env[toKey(variable)]
-
-/**
- * @returns {Type.Variable<any>}
- */
-export const variable = () => new Variable()
-
-class Variable {
-  static id = 0
-
-  constructor(id = ++Variable.id) {
-    this['?'] = { id }
-  }
-}
+export default Scope

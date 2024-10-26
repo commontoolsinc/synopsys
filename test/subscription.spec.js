@@ -1,5 +1,5 @@
 import * as DB from 'datalogia'
-import { Task, Agent, refer, variable } from 'synopsys'
+import { Task, Agent, refer, $ } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
@@ -14,10 +14,7 @@ export const testSubscription = {
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      const collection = variable()
-      const item = variable()
-      const key = variable()
-      const value = variable()
+      const { collection, item, key, value } = $
 
       const subscription = yield* agent.subscribe({
         select: {
@@ -37,7 +34,7 @@ export const testSubscription = {
         ],
       })
 
-      const selections = take(subscription, 2)
+      const selections = take(subscription, 3)
 
       yield* DB.transact(agent, [
         { Assert: [stuff, 'member', member] },
@@ -60,6 +57,7 @@ export const testSubscription = {
       const output = yield* Task.wait(selections)
 
       assert.deepEqual(output, [
+        [],
         [
           {
             collection: stuff,
@@ -90,6 +88,9 @@ export const testSubscription = {
     Task.spawn(function* () {
       const store = yield* Memory.open()
       const agent = yield* Agent.open({ local: { store } })
+      // const agent = yield* Agent.open({
+      //   remote: { url: new URL('http://localhost:8080') },
+      // })
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
@@ -99,10 +100,7 @@ export const testSubscription = {
         { Assert: [member, 'message', "You've got an email!"] },
       ])
 
-      const collection = variable()
-      const item = variable()
-      const key = variable()
-      const value = variable()
+      const { collection, item, key, value } = $
 
       const subscription = yield* agent.subscribe({
         select: {
@@ -122,7 +120,8 @@ export const testSubscription = {
         ],
       })
 
-      const initial = yield* subscription.poll()
+      const reader = subscription.fork().getReader()
+      const { value: initial } = yield* Task.wait(reader.read())
 
       assert.deepEqual(initial, [
         {
@@ -142,7 +141,7 @@ export const testSubscription = {
         { Assert: [member, 'message', 'You have an email!'] },
       ])
 
-      const updated = yield* subscription.poll()
+      const { value: updated } = yield* Task.wait(reader.read())
 
       assert.deepEqual(updated, [
         {
@@ -166,7 +165,7 @@ export const testSubscription = {
  */
 const take = async (subscription, limit = Infinity) => {
   const results = []
-  for await (const selection of subscription) {
+  for await (const selection of subscription.fork()) {
     results.push(selection)
     if (results.length >= limit) {
       break

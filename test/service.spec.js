@@ -1,5 +1,5 @@
 import * as DB from 'datalogia'
-import { Task, Agent, refer, variable } from 'synopsys'
+import { Task, Agent, refer, $ } from 'synopsys'
 import * as Service from 'synopsys/service'
 import * as Reference from '../src/datum/reference.js'
 import { read } from 'fs'
@@ -29,6 +29,72 @@ export const testService = {
       )
 
       yield* Service.close(service)
+    }),
+  'patch transacts data': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const counter = refer({ counter: {} })
+
+      const patch = yield* Service.request(
+        service,
+        new Request('https://localhost:8080', {
+          method: 'PATCH',
+          body: JSON.stringify([{ Assert: [counter, 'count', 1] }]),
+        })
+      )
+
+      assert.equal(patch.status, 200)
+      const result = yield* Task.wait(patch.json())
+
+      assert.equal(typeof result.ok.before, 'string')
+      assert.equal(typeof result.ok.after, 'string')
+    }),
+  'unsupported method': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const unsupported = yield* Service.request(
+        service,
+        new Request('https://localhost:8080', { method: 'DELETE' })
+      )
+
+      assert.equal(unsupported.status, 405)
+      assert.equal(unsupported.statusText, 'Method Not Allowed')
+      assert.deepEqual(yield* Task.wait(unsupported.json()), {
+        error: { message: 'Method not allowed' },
+      })
+    }),
+  'GET /': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const get = yield* Service.request(
+        service,
+        new Request('https://localhost:8080')
+      )
+
+      assert.equal(get.status, 404)
+      assert.equal(get.headers.get('Content-Type'), 'application/json')
+      assert.deepEqual(yield* Task.wait(get.json()), {
+        ok: {},
+      })
+    }),
+
+  'GET /jibberish': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const get = yield* Service.request(
+        service,
+        new Request('https://localhost:8080/jibberish')
+      )
+
+      assert.equal(get.status, 404)
+      assert.equal(get.headers.get('Content-Type'), 'application/json')
+      assert.deepEqual(yield* Task.wait(get.json()), {
+        error: { message: `Query jibberish was not found` },
+      })
     }),
   'rejects invalid query': (assert) =>
     Task.spawn(function* () {
@@ -70,22 +136,21 @@ export const testService = {
       assert.equal(put.status, 303, 'redirects to the query')
       assert.equal(
         put.headers.get('Location'),
-        `http://localhost:8080/ba4jcavoloncqccqzve7pvmge4rb3sicm5ck54ov5wfc2el4of7ersvoo`
+        `http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef`
       )
 
-      const query = Agent.variable()
       const found = yield* DB.query(service.source, {
-        select: { query },
-        where: [{ Case: [Agent.synopsys, 'synopsys/query', query] }],
+        select: { query: $.query },
+        where: [{ Case: [Agent.synopsys, 'synopsys/query', $.query] }],
       })
 
       assert.deepEqual(
         found.map(({ query }) => query.toString()),
-        ['ba4jcavoloncqccqzve7pvmge4rb3sicm5ck54ov5wfc2el4of7ersvoo'],
+        ['ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef'],
         'query was stored to database'
       )
     }),
-  'only returns event source when getting query': (assert) =>
+  'returns event source when getting query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open(new URL('memory:'))
 
@@ -126,6 +191,96 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
 
       assert.deepEqual(service.subscriptions.size, 0, 'subscription is closed')
 
-      console.log(service.agent.toJSON())
+      assert.equal(
+        Object(service.agent).subscriptions.size,
+        0,
+        'agent subscriptions are also closed'
+      )
+
+      const retry = yield* Service.request(service, new Request(location))
+      assert.equal(retry.status, 200, 'still got new event source')
+      assert.equal(retry.headers.get('Content-Type'), 'text/event-stream')
+    }),
+  'fails to find query': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const get = yield* Service.request(
+        service,
+        new Request(
+          'http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef'
+        )
+      )
+      assert.equal(get.status, 404)
+      assert.equal(get.headers.get('Content-Type'), 'application/json')
+      assert.deepEqual(yield* Task.wait(get.json()), {
+        error: {
+          message: `Query ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef was not found`,
+        },
+      })
+    }),
+
+  'concurrent subscriptions': (assert) =>
+    Task.spawn(function* () {
+      const service = yield* Service.open(new URL('memory:'))
+
+      const put = yield* Service.request(
+        service,
+        new Request('http://localhost:8080', {
+          method: 'PUT',
+          body: JSON.stringify({
+            select: {
+              count: '?count',
+            },
+            where: [
+              { Case: [refer({ counter: {} }), 'counter/count', '?count'] },
+            ],
+          }),
+        })
+      )
+
+      assert.equal(put.status, 303, 'redirects to the query')
+      const location = put.headers.get('Location') ?? ''
+
+      const get = yield* Service.request(service, new Request(location))
+      assert.equal(get.status, 200)
+      assert.equal(get.headers.get('Content-Type'), 'text/event-stream')
+
+      const body = /** @type {ReadableStream<Uint8Array>} */ (get.body)
+      const reader = body.getReader()
+      const chunk = yield* Task.wait(reader.read())
+      const content = new TextDecoder().decode(chunk?.value)
+
+      assert.equal(
+        content,
+        `id:ba4jca7pcf7obj4jijrrgmgzo642qydb7cstlwpv7vf7oudqyrpwhowxx
+event:change
+data:[]\n\n`
+      )
+
+      const concurrent = yield* Service.request(service, new Request(location))
+      assert.equal(concurrent.status, 200, 'still got new event source')
+      assert.equal(concurrent.headers.get('Content-Type'), 'text/event-stream')
+      assert.equal(get.status, 200)
+      assert.equal(get.headers.get('Content-Type'), 'text/event-stream')
+
+      yield* DB.transact(service.agent, [
+        { Assert: [refer({ counter: {} }), 'counter/count', 1] },
+      ])
+
+      {
+        const body = /** @type {ReadableStream<Uint8Array>} */ (concurrent.body)
+        const reader = body.getReader()
+
+        const chunk = yield* Task.wait(reader.read())
+        const content = new TextDecoder().decode(chunk?.value)
+
+        assert.equal(
+          content,
+          `id:ba4jcapk7kku4u32tw7sx63wuup2glg2wqspvo356b62k3bzwcfcntdwt
+event:change
+data:[{"count":1}]\n\n`
+        )
+      }
     }),
 }

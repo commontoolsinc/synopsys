@@ -1,8 +1,8 @@
 import * as Type from '../type.js'
 import * as DB from 'datalogia'
-import * as Subscription from '../subscription.js'
+import { Task } from 'datalogia'
 import { refer } from '../../datum/reference.js'
-import { promise } from '../sync.js'
+import { broadcast, channel } from '../sync.js'
 
 /**
  * @typedef {object} Open
@@ -10,9 +10,14 @@ import { promise } from '../sync.js'
  */
 
 /**
+ * Local session state. It holds a reference to the underlying store and a queue
+ * of signals awaiting to be notified of a commit. Active subscriptions will
+ * queue up to be notified of commits, but when they become inactive they will
+ * stop listening for commits.
+ *
  * @typedef {object} LocalSession
  * @property {Type.Store} store
- * @property {Set<Type.SignalController<Type.Commit>>} queue
+ * @property {Type.Reader<Type.Commit, never>} transaction
  */
 
 /**
@@ -21,7 +26,7 @@ import { promise } from '../sync.js'
  * @param {Open} options
  */
 export const open = function* (options) {
-  return new Local(options.store, new Set())
+  return new Local(options.store)
 }
 
 /**
@@ -36,11 +41,18 @@ export function* subscribe(session, query) {
     query,
     session,
   })
-  const subscription = yield* Subscription.open({ query, source })
-  return subscription
+
+  return broadcast(source)
 }
 
 /**
+ * This is a readable stream that produces recomputed query selections when
+ * underlying session is transacted. It queues up commit signals while it is
+ * being consumed and stops queuing it is not. This gives us a pull based
+ * model of query re-evaluation, meaning it does not evaluate query on every
+ * commit, only does it while being consumed.
+ *
+ *
  * @template {DB.Selector} [Select=DB.API.Selector]
  * @extends {ReadableStream<Type.Selection<Select>[]>}
  */
@@ -54,42 +66,73 @@ class LocalSource extends ReadableStream {
    */
   constructor(source, strategy, options) {
     super({
-      pull: async (controller) => {
-        // Loop until we receive an update that will result in an updated view.
-        while (true) {
-          // Wait for the view to become stale and then re-run a query.
-          await this.stale
-          if (this.cancelled) {
-            return
-          }
-          const selection = await DB.query(this.session.store, this.query)
-          if (this.cancelled) {
-            return
-          }
-
-          // Setup a signal to be notified when the view becomes stale.
-          this.stale = promise()
-          this.session.queue.add(this.stale)
-
-          const revision = refer(selection)
-          if (this.revision.toString() !== revision.toString()) {
-            this.revision = revision
-            controller.enqueue(selection)
+      pull: async (subscriber) => {
+        // Poll view until stream is cancelled or we get a new selection. If we
+        // get a selection forward it downstream and break the loop until the
+        // next pull from the subscriber.
+        while (!this.cancelled) {
+          const poll = Task.perform(this.poll())
+          const selection = await poll
+          // If we got a selection we enqueue it to the subscriber and break the
+          // loop.
+          if (selection) {
+            subscriber.enqueue(selection)
             break
           }
         }
       },
+      // If stream is cancelled we mark it as such. On the next commit our
+      // polling loop will break and this stream could be garbage collected.
       cancel: () => {
         this.cancelled = true
-        this.session.queue.delete(this.stale)
       },
     })
+
+    // Start off without any revision, that way first result will be pushed
+    // regardless of its value.
+    this.revision = null
+    // Stream is not cancelled initially.
     this.cancelled = false
-    this.revision = refer(/** @type {Type.Selection<Select>[]} */ ([]))
+    // Reference to the underlying query, which is used to re-evaluate on
+    // commit.
     this.query = options.query
     this.session = options.session
-    this.stale = promise()
-    this.stale.send({})
+  }
+
+  *poll() {
+    // If we have revision we wait for the new session commit before we
+    // re-evaluate the query. If we don not have revision yet we want to
+    // evaluate the query immediately.
+    if (this.revision) {
+      yield* this.session.transaction.read()
+
+      // If stream was cancelled while we were waiting we abort as subscriber
+      // is no longer interested in the results.
+      if (this.cancelled) {
+        return null
+      }
+    }
+
+    const selection = yield* DB.query(this.session.store, this.query)
+    // If stream was cancelled while we were evaluating a query we abort as
+    // subscriber is no longer interested in the results.
+    if (this.cancelled) {
+      return null
+    }
+
+    // If new query result is different from the previous one we update a
+    // revision and return new result. Otherwise we return `null` as there
+    // is nothing new for the subscriber.
+    const revision = refer(selection)
+    if (this.revision?.toString() !== revision.toString()) {
+      // update local revision
+      this.revision = revision
+      // We break the loop as we don't react to commits unless subscriber
+      // pulls from the stream.
+      return selection
+    }
+
+    return null
   }
 }
 
@@ -100,24 +143,11 @@ class LocalSource extends ReadableStream {
  */
 export function* transact(session, changes) {
   const commit = yield* DB.transact(session.store, changes)
-  // Broadcast commit to all the queued signals.
-  yield* publish(session, commit)
+
+  // Write a new commit into transaction channel.
+  session.transaction.write(commit)
 
   return commit
-}
-
-/**
- * Publishes commit to all the queued signals.
- *
- * @param {Local} session
- * @param {Type.Commit} commit
- */
-export function* publish(session, commit) {
-  const [...queue] = session.queue
-  session.queue.clear()
-  for (const signal of queue) {
-    signal.send(commit)
-  }
 }
 
 /**
@@ -127,11 +157,10 @@ class Local {
   /**
    *
    * @param {Type.Store} store
-   * @param {Set<Type.SignalController<{}>>} queue
    */
-  constructor(store, queue) {
+  constructor(store) {
     this.store = store
-    this.queue = queue
+    this.transaction = channel()
   }
 
   /**
@@ -143,7 +172,6 @@ class Local {
   }
 
   /**
-   *
    * @param {DB.Transaction} changes
    */
   transact(changes) {
