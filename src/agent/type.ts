@@ -27,6 +27,7 @@ import type { Commit, Database as Store } from '../store/okra.js'
 import { Phantom } from 'multiformats'
 
 export { Store, Commit }
+export type Revision = { id: string }
 
 /**
  * A directed acyclic graph.
@@ -49,8 +50,6 @@ export interface Session {
   ): Task<Subscription<Select>, Error>
 
   transact(changes: Transaction): Task<Commit, Error>
-
-  toJSON(): object
 }
 
 export interface Subscription<Select extends Selector = Selector>

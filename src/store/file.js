@@ -9,10 +9,11 @@ export * from './okra.js'
  * has a `memory:` protocol, an ephemeral in-memory database returned. If the
  * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
- * @typedef {import('@canvas-js/okra-lmdb').TreeOptions} Options
+ * @typedef {import('@canvas-js/okra-lmdb').TreeOptions & {
+ *    url: URL
+ * }} Open
  *
- * @param {URL} url
- * @param {Options} [options]
+ * @param {Open} source
  */
-export const open = (url, options) =>
+export const open = ({ url, ...options }) =>
   Store.open(new LMDB.Tree(fileURLToPath(url), options))

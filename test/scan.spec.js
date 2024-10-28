@@ -164,7 +164,7 @@ export const testScan = {
  * @param {URL} [url]
  */
 function* loadTodo(url) {
-  const db = url ? yield* Store.open(url) : yield* Memory.open()
+  const db = url ? yield* Store.open({ url }) : yield* Memory.open()
 
   const list = refer({ title: 'Todo List' })
   const milk = refer({ title: 'Buy Milk' })

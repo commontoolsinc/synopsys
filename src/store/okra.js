@@ -35,6 +35,14 @@ export class Database {
   transact(instructions) {
     return transact(this, instructions)
   }
+
+  status() {
+    return status(this)
+  }
+
+  close() {
+    return close(this)
+  }
 }
 
 /**
@@ -53,6 +61,10 @@ class Revision {
    */
   get id() {
     return base58btc.baseEncode(this.#root.hash)
+  }
+
+  toJSON() {
+    return { id: this.id }
   }
 }
 

@@ -9,22 +9,28 @@ import { of as refer } from '../../datum/reference.js'
 import { broadcast } from '../sync.js'
 
 /**
+ * @typedef {(request: Request) => Promise<Response>} Fetch
+ */
+
+/**
  * @typedef {object} Open
  * @property {URL} url
+ * @property {Fetch} [fetch]
  */
 
 /**
  * @typedef {object} RemoteSession
- * @property {URL} source
+ * @property {URL} url
+ * @property {Fetch} fetch
  */
 
 /**
  * Opens a new remote session.
  *
- * @param {Open} options
+ * @param {Open} source
  */
-export function* open(options) {
-  return new Remote(options.url)
+export function* open({ url, fetch = globalThis.fetch }) {
+  return new Remote({ url, fetch })
 }
 
 /**
@@ -35,15 +41,14 @@ export function* open(options) {
 export function* subscribe(session, query) {
   const bytes = yield* Query.toBytes(query)
   const id = refer(bytes)
-  const response = yield* Task.wait(
-    fetch(new URL(id.toString(), session.source).href, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: bytes,
-    })
-  )
+  const request = new Request(new URL(id.toString(), session.url).href, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: bytes,
+  })
+  const response = yield* Task.wait(session.fetch(request))
 
   const body = /** @type {ReadableStream<Uint8Array>} */ (response.body)
   const source =
@@ -58,15 +63,14 @@ export function* subscribe(session, query) {
  * @param {DB.Transaction} changes
  */
 export function* transact(session, changes) {
-  const response = yield* Task.wait(
-    fetch(session.source.href, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: yield* DAG.encode(JSON, changes),
-    })
-  )
+  const request = new Request(session.url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: yield* DAG.encode(JSON, changes),
+  })
+  const response = yield* Task.wait(session.fetch(request))
 
   const buffer = yield* Task.wait(response.arrayBuffer())
   const data = yield* DAG.decode(JSON, new Uint8Array(buffer))
@@ -81,10 +85,33 @@ export function* transact(session, changes) {
 
 class Remote {
   /**
-   * @param {URL} source
+   * @param {object} source
+   * @param {URL} source.url
+   * @param {Fetch} source.fetch
    */
   constructor(source) {
     this.source = source
+  }
+  get url() {
+    return this.source.url
+  }
+  /**
+   * @param {Request} request
+   */
+  async fetch(request) {
+    const response = await this.source.fetch(request)
+    // follow redirects
+    switch (response.status) {
+      /* c8 ignore next */
+      case 302:
+      case 303:
+        return await this.source.fetch(
+          new Request(/** @type {string} */ (response.headers.get('Location')))
+        )
+      default: {
+        return response
+      }
+    }
   }
 
   /**
@@ -101,8 +128,5 @@ class Remote {
    */
   transact(changes) {
     return transact(this, changes)
-  }
-  toJSON() {
-    return this
   }
 }

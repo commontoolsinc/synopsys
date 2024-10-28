@@ -1,6 +1,4 @@
 import * as DB from 'datalogia'
-import * as Memory from './store/memory.js'
-import * as Store from './store/file.js'
 import { Task } from 'datalogia'
 import * as JSON from '@ipld/dag-json'
 export * as DB from 'datalogia'
@@ -21,24 +19,39 @@ const CORS = {
 /**
  * Connects to the  service by opening the underlying store.
  *
- * @param {URL} url
- * @param {Store.Options} [options]
- * @returns {Task.Task<MutableSelf, Error>}
+ * @param {object} source
+ * @param {Agent.Store} source.store
+ * @returns {Task.Task<Service, Error>}
  */
-export const open = function* (url, options) {
-  const store =
-    url.protocol === 'memory:'
-      ? yield* Memory.open()
-      : /* c8 ignore next 3 */
-        yield* Store.open(url, options)
-
+export const open = function* ({ store }) {
   const agent = yield* Agent.open({ local: { store } })
-  const { id } = yield* Store.status(store)
-  return {
-    id,
-    agent,
-    source: store,
-    subscriptions: new Map(),
+  const revision = yield* store.status()
+
+  return new Service(agent, store, revision)
+}
+
+export class Service {
+  /**
+   * @param {Agent.Revision} revision
+   * @param {Agent.Session} agent
+   * @param {Agent.Store} store
+   * @param {Map<string, ReturnType<broadcast>>} subscriptions
+   *
+   */
+  constructor(agent, store, revision, subscriptions = new Map()) {
+    this.agent = agent
+    this.store = store
+    this.revision = revision
+    this.subscriptions = subscriptions
+
+    this.fetch = this.fetch.bind(this)
+  }
+
+  /**
+   * @param {Request} request
+   */
+  fetch(request) {
+    return Task.perform(fetch(this, request))
   }
 }
 
@@ -48,15 +61,16 @@ export const open = function* (url, options) {
  * @param {MutableSelf} self
  */
 export const close = function* (self) {
-  yield* Store.close(self.source)
+  yield* self.store.close()
 }
 
 /**
  *
  * @param {MutableSelf} self
  * @param {Request} request
+ * @returns {Task.Task<Response, Error>}
  */
-export const request = function* (self, request) {
+export const fetch = function* (self, request) {
   switch (request.method) {
     case 'OPTIONS':
       return new Response(null, {
@@ -71,7 +85,7 @@ export const request = function* (self, request) {
     case 'GET':
       return yield* get(self, request)
     default:
-      return error(
+      return yield* error(
         { message: 'Method not allowed' },
         { status: 405, statusText: 'Method Not Allowed' }
       )
@@ -83,18 +97,43 @@ export const request = function* (self, request) {
  * @param {Request} request
  */
 export function* patch(self, request) {
-  const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
-  const changes = /** @type {DB.Transaction} */ (yield* DAG.decode(JSON, body))
-  const commit = yield* DB.transact(self.source, changes)
-  return ok({
-    before: commit.before.id,
-    after: commit.after.id,
-  })
+  try {
+    const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
+    const changes = /** @type {DB.Transaction} */ (
+      yield* DAG.decode(JSON, body)
+    )
+    const commit = yield* self.agent.transact(changes)
+    self.revision = commit.after
+    return yield* ok({
+      before: commit.before,
+      after: commit.after,
+    })
+  } catch (reason) {
+    const { name, message, stack } = /** @type {Partial<Error>} */ (
+      reason ?? {}
+    )
+
+    return yield* error(
+      {
+        error: {
+          name,
+          message,
+          stack,
+        },
+      },
+      {
+        // It could be that server has an error, but most likely it is
+        // bad request.
+        status: 400,
+      }
+    )
+  }
 }
 
 /**
  * @param {MutableSelf} self
  * @param {Request} request
+ * @returns {Task.Task<Response, Error>}
  */
 export function* put(self, request) {
   const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
@@ -102,7 +141,7 @@ export function* put(self, request) {
     const query = refer(yield* Query.fromBytes(body))
     if (!self.subscriptions.get(query.toString())) {
       // Check if we have this query stored in the database already.
-      const selection = yield* DB.query(self.source, {
+      const selection = yield* DB.query(self.store, {
         select: {},
         where: [{ Case: [synopsys, 'synopsys/query', query] }],
       })
@@ -111,7 +150,7 @@ export function* put(self, request) {
       // we probably want to store actual query into a blob but this will do
       // for now.
       if (selection.length === 0) {
-        yield* DB.transact(self.source, [
+        yield* DB.transact(self.store, [
           { Assert: [synopsys, 'synopsys/query', query] },
           { Assert: [query, 'blob/content', body] },
         ])
@@ -127,7 +166,7 @@ export function* put(self, request) {
       },
     })
   } catch (reason) {
-    return error(
+    return yield* error(
       { message: /** @type {Error} */ (reason).message },
       {
         status: 400,
@@ -139,12 +178,12 @@ export function* put(self, request) {
 
 /**
  * @typedef {object} Self
- * @property {string} id - Current hash of the store.
- * @property {DB.API.Querier} source - The underlying data store.
+ * @property {Agent.Revision} revision - Current revision of the store.
+ * @property {DB.API.Querier} store - The underlying data store.
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Agent.Session} agent - The agent session.
  *
- * @typedef {Self & {source: DB.API.Transactor<Store.Commit>}} MutableSelf
+ * @typedef {Self & {store: Agent.Store}} MutableSelf
  */
 
 /**
@@ -158,7 +197,7 @@ export const subscribe = function* (self, id) {
     return channel
   } else {
     const { content } = Agent.$
-    const [selection] = yield* DB.query(self.source, {
+    const [selection] = yield* DB.query(self.store, {
       select: { content },
       where: [{ Case: [id, 'blob/content', content] }],
     })
@@ -187,13 +226,16 @@ export const get = function* (self, request) {
   // If we land on the root URL we just return an empty response.
   const url = new URL(request.url)
   if (url.pathname === '/') {
-    return ok({}, { status: 404 })
+    return yield* ok({}, { status: 404 })
   }
 
   const id = url.pathname.slice(1)
   const query = Reference.fromString(id, null)
   if (query == null) {
-    return error({ message: `Query ${id} was not found` }, { status: 404 })
+    return yield* error(
+      { message: `Query ${id} was not found` },
+      { status: 404 }
+    )
   }
   const source = yield* subscribe(self, query)
 
@@ -208,7 +250,10 @@ export const get = function* (self, request) {
       },
     })
   } else {
-    return error({ message: `Query ${id} was not found` }, { status: 404 })
+    return yield* error(
+      { message: `Query ${id} was not found` },
+      { status: 404 }
+    )
   }
 }
 
@@ -222,26 +267,46 @@ export const get = function* (self, request) {
  * @param {{}} ok
  * @param {HTTPOptions} [options]
  */
-export const ok = (ok, options) => response({ ok }, options)
+export const ok = (ok, options) => respond({ ok }, options)
 
 /**
  * @param {{}} error
  * @param {HTTPOptions} [options]
  */
 export const error = (error, options) =>
-  response({ error }, { status: 500, ...options })
+  respond({ error }, { status: 500, ...options })
 
 /**
  * @param {Agent.Result} result
  * @param {HTTPOptions} [options]
  */
-const response = (result, { status = 200, statusText, headers } = {}) =>
-  new Response(JSON.stringify(result), {
-    status,
-    ...(statusText ? { statusText } : {}),
-    headers: {
-      ...CORS,
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-  })
+const respond = function* (result, { status = 200, statusText, headers } = {}) {
+  try {
+    return new Response(yield* DAG.encode(JSON, result), {
+      status,
+      ...(statusText ? { statusText } : {}),
+      headers: {
+        ...CORS,
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    })
+  } catch (error) {
+    return new Response(
+      yield* DAG.encode(JSON, {
+        error: {
+          message: /** @type {null|{message?:unknown}} */ (error)?.message,
+          stack: /** @type {null|{stack?:unknown}} */ (error)?.stack,
+        },
+      }),
+      {
+        status: 500,
+        headers: {
+          ...CORS,
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+      }
+    )
+  }
+}

@@ -7,8 +7,8 @@ export * from './okra.js'
  * has a `memory:` protocol, an ephemeral in-memory database returned. If the
  * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
- * @typedef {import('@canvas-js/okra').Metadata} Options
+ * @typedef {Partial<import('@canvas-js/okra').Metadata>} Open
  *
- * @param {Options} [options]
+ * @param {Open} [source]
  */
-export const open = (options) => Store.open(new Memory.Tree(options))
+export const open = (source) => Store.open(new Memory.Tree(source))

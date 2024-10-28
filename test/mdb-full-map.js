@@ -13,7 +13,8 @@ export const testLMDB = {
       const json = new URL(`./test-flat-file.json`, import.meta.url)
       yield* Task.wait(FS.rm(url, { recursive: true, force: true }))
       // yield* Task.wait(FS.rm(json, { recursive: true, force: true }))
-      const store = yield* Store.open(url, {
+      const store = yield* Store.open({
+        url,
         mapSize: 3 * 1024 * 1024 * 1024,
       })
       const agent = yield* Agent.open({

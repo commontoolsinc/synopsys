@@ -1,15 +1,14 @@
-import * as DB from 'datalogia'
 import { Task, Agent, refer, $ } from 'synopsys'
-import * as Memory from 'synopsys/store/memory'
 
 /**
- * @type {import('entail').Suite}
+ * @param {object} options
+ * @param {() => Task.Task<Agent.Session, Error>} options.connect
+ * @returns {import('entail').Suite}
  */
-export const testSubscription = {
+export const testSubscription = ({ connect }) => ({
   'iterate subscription': (assert) =>
     Task.spawn(function* () {
-      const store = yield* Memory.open()
-      const agent = yield* Agent.open({ local: { store } })
+      const agent = yield* connect()
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
@@ -36,20 +35,20 @@ export const testSubscription = {
 
       const selections = take(subscription, 3)
 
-      yield* DB.transact(agent, [
+      yield* agent.transact([
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
 
       yield* Task.sleep(1)
 
-      yield* DB.transact(agent, [
+      yield* agent.transact([
         { Assert: [member, 'comment', 'does not affect query'] },
       ])
 
       yield* Task.sleep(1)
 
-      yield* DB.transact(agent, [
+      yield* agent.transact([
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])
@@ -86,16 +85,12 @@ export const testSubscription = {
     }),
   'poll subscription': (assert) =>
     Task.spawn(function* () {
-      const store = yield* Memory.open()
-      const agent = yield* Agent.open({ local: { store } })
-      // const agent = yield* Agent.open({
-      //   remote: { url: new URL('http://localhost:8080') },
-      // })
+      const agent = yield* connect()
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      yield* DB.transact(agent, [
+      yield* agent.transact([
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
@@ -136,7 +131,7 @@ export const testSubscription = {
         },
       ])
 
-      yield* DB.transact(agent, [
+      yield* agent.transact([
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])
@@ -156,7 +151,7 @@ export const testSubscription = {
         },
       ])
     }),
-}
+})
 
 /**
  * @template {Agent.Selector} Select
