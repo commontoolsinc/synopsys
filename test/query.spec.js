@@ -1,5 +1,4 @@
-import { Task, Agent, refer, variable, $ } from 'synopsys'
-import * as Memory from 'synopsys/store/memory'
+import { Task, $, Query } from 'synopsys'
 
 /**
  * @type {import('entail').Suite}
@@ -69,4 +68,27 @@ export const testQuery = {
     assert.equal(b, fork.b)
     assert.notEqual(main.c, fork.c)
   },
+
+  'invalid query': (assert) =>
+    Task.spawn(function* () {
+      const { error: badQuery } = yield* Task.result(Query.fromJSON(5))
+      assert.match(badQuery, /Invalid query, expected an object/)
+
+      const { error: badSelect } = yield* Task.result(
+        Query.fromJSON({
+          select: [5],
+          where: [],
+        })
+      )
+      assert.match(badSelect, /Invalid query selector/)
+
+      const { error: numSelect } = yield* Task.result(
+        Query.fromJSON({
+          select: 5,
+          where: [],
+        })
+      )
+
+      assert.match(numSelect, /.select must be an object or a tuple/)
+    }),
 }

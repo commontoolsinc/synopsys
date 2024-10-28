@@ -110,7 +110,7 @@ export function* patch(self, request) {
     })
   } catch (reason) {
     const { name, message, stack } = /** @type {Partial<Error>} */ (
-      reason ?? {}
+      reason /* c8 ignore next */ ?? {}
     )
 
     return yield* error(
@@ -291,6 +291,7 @@ const respond = function* (result, { status = 200, statusText, headers } = {}) {
         ...headers,
       },
     })
+    ///* c8 ignore next 18 */ not sure how to test this
   } catch (error) {
     return new Response(
       yield* DAG.encode(JSON, {

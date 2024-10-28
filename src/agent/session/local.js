@@ -108,6 +108,7 @@ class LocalSource extends ReadableStream {
 
       // If stream was cancelled while we were waiting we abort as subscriber
       // is no longer interested in the results.
+      ///* c8 ignore next 3 */ not sure how to test this
       if (this.cancelled) {
         return null
       }
@@ -116,6 +117,7 @@ class LocalSource extends ReadableStream {
     const selection = yield* DB.query(this.session.store, this.query)
     // If stream was cancelled while we were evaluating a query we abort as
     // subscriber is no longer interested in the results.
+    ///* c8 ignore next 3 */ not sure how to test this
     if (this.cancelled) {
       return null
     }

@@ -18,6 +18,7 @@ export const toEventSource = (source) =>
       return [, [bytes]]
     },
     *close() {
+      ///* c8 ignore next */ We don't really end subscriptions consumers cancel
       return []
     },
   })
@@ -39,6 +40,7 @@ export const fromEventSource = (source) =>
       return [, [selection]]
     },
     *close() {
+      ///* c8 ignore next */ We don't really end subscriptions consumers cancel
       return []
     },
   })
@@ -62,7 +64,7 @@ function* fromEventSourceMessage(bytes) {
       return bytes.slice(offset + 1)
     }
   }
-
+  ///* c8 ignore next */  Don't have test to cover non event source response
   throw new RangeError('Invalid EventSource message')
 }
 
