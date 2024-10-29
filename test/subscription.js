@@ -151,6 +151,58 @@ export const testSubscription = ({ connect }) => ({
         },
       ])
     }),
+  'existing subscription': (assert) =>
+    Task.spawn(function* () {
+      const agent = yield* connect()
+
+      const stuff = refer({ collection: 'stuff' })
+      const member = refer({ member: 'email', of: stuff })
+
+      yield* agent.transact([
+        { Assert: [stuff, 'member', member] },
+        { Assert: [member, 'message', "You've got an email!"] },
+      ])
+
+      const { collection, item, key, value } = $
+
+      const subscription = yield* agent.subscribe({
+        select: {
+          collection,
+          item: [
+            {
+              item,
+              key,
+              value,
+            },
+          ],
+        },
+        where: [
+          { Case: [collection, 'member', item] },
+          { Case: [item, key, value] },
+          { Match: [{ text: value, pattern: '*email*' }, 'text/like'] },
+        ],
+      })
+
+      const duplicate = yield* agent.subscribe({
+        select: {
+          collection,
+          item: [
+            {
+              item,
+              key,
+              value,
+            },
+          ],
+        },
+        where: [
+          { Case: [collection, 'member', item] },
+          { Case: [item, key, value] },
+          { Match: [{ text: value, pattern: '*email*' }, 'text/like'] },
+        ],
+      })
+
+      assert.equal(subscription, duplicate)
+    }),
 })
 
 /**

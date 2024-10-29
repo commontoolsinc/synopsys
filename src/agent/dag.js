@@ -129,13 +129,16 @@ function* fromArray(data, options, seen) {
         if (options.symbol !== undefined) {
           elements.push(options.symbol)
         }
+        break
       }
       default: {
         // If element is `null` we substitute it with a substitution for `null`
-        // when one is provided, otherwise we omit an element.
+        // when one is provided, otherwise we keep null
         if (element === null) {
           if (options.null !== undefined) {
             elements.push(options.null)
+          } else {
+            elements.push(null)
           }
         }
         // if any other element we import it into the DAG.

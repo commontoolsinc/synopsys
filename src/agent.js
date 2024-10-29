@@ -90,8 +90,4 @@ export class AgentView {
   subscribe(query) {
     return subscribe(this, query)
   }
-
-  toJSON() {
-    return this
-  }
 }
