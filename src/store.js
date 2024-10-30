@@ -1,5 +1,5 @@
 import { Task } from 'datalogia'
-import * as Type from './agent/type.js'
+import * as Type from './replica/type.js'
 
 /**
  * @typedef {import('./store/file.js').Open & {

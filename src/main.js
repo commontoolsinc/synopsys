@@ -1,4 +1,4 @@
-import { Agent, Task } from './lib.js'
+import { Task } from './lib.js'
 import * as HTTP from './http.js'
 import * as Service from './service.js'
 import * as Store from './store.js'

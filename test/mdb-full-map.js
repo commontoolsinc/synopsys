@@ -1,4 +1,4 @@
-import { Agent, Task, refer } from 'synopsys'
+import { Replica, Task, refer } from 'synopsys'
 import * as Store from 'synopsys/store/file'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
@@ -17,7 +17,7 @@ export const testLMDB = {
         url,
         mapSize: 3 * 1024 * 1024 * 1024,
       })
-      const agent = yield* Agent.open({
+      const replica = yield* Replica.open({
         local: { store },
       })
 
@@ -29,7 +29,7 @@ export const testLMDB = {
         console.log(`Importing ${count}...`)
         const batch = [...generateBatch(count, size)]
         const { ok, error } = yield* Task.perform(
-          Agent.transact(agent, batch)
+          Replica.transact(replica, batch)
         ).result()
 
         if (error) {

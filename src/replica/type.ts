@@ -41,7 +41,7 @@ export interface Reference<T extends null | {} = null | {}> extends Phantom<T> {
 }
 
 /**
- * Represents an agent session with a local or a remote database.
+ * Represents a session with a local or a remote database.
  */
 
 export interface Session {
@@ -51,6 +51,11 @@ export interface Session {
 
   transact(changes: Transaction): Task<Commit, Error>
 }
+
+/**
+ * Represents database replica either local or a remote.
+ */
+export interface Replica extends Session {}
 
 export interface Subscription<Select extends Selector = Selector>
   extends BroadcastStream<Selection<Select>[]> {}

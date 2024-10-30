@@ -1,5 +1,5 @@
-import * as Sync from '../src/agent/sync.js'
-import { Task, Agent, refer, $ } from 'synopsys'
+import * as Sync from '../src/replica/sync.js'
+import { Task } from 'synopsys'
 
 /**
  * @type {import('entail').Suite}

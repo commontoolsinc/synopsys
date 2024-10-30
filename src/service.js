@@ -2,13 +2,13 @@ import * as DB from 'datalogia'
 import { Task } from 'datalogia'
 import * as JSON from '@ipld/dag-json'
 export * as DB from 'datalogia'
-import * as Agent from './agent.js'
+import * as Replica from './replica.js'
 import * as Reference from './datum/reference.js'
-import * as Query from './agent/query.js'
-import { refer, synopsys } from './agent.js'
-import { toEventSource } from './agent/selection.js'
-import { broadcast } from './agent/sync.js'
-import * as DAG from './agent/dag.js'
+import * as Query from './replica/query.js'
+import { refer, synopsys } from './replica.js'
+import { toEventSource } from './replica/selection.js'
+import { broadcast } from './replica/sync.js'
+import * as DAG from './replica/dag.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -20,26 +20,26 @@ const CORS = {
  * Connects to the  service by opening the underlying store.
  *
  * @param {object} source
- * @param {Agent.Store} source.store
+ * @param {Replica.Store} source.store
  * @returns {Task.Task<Service, Error>}
  */
 export const open = function* ({ store }) {
-  const agent = yield* Agent.open({ local: { store } })
+  const replica = yield* Replica.open({ local: { store } })
   const revision = yield* store.status()
 
-  return new Service(agent, store, revision)
+  return new Service(replica, store, revision)
 }
 
 export class Service {
   /**
-   * @param {Agent.Revision} revision
-   * @param {Agent.Session} agent
-   * @param {Agent.Store} store
+   * @param {Replica.Revision} revision
+   * @param {Replica.Replica} replica
+   * @param {Replica.Store} store
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
    *
    */
-  constructor(agent, store, revision, subscriptions = new Map()) {
-    this.agent = agent
+  constructor(replica, store, revision, subscriptions = new Map()) {
+    this.replica = replica
     this.store = store
     this.revision = revision
     this.subscriptions = subscriptions
@@ -102,7 +102,7 @@ export function* patch(self, request) {
     const changes = /** @type {DB.Transaction} */ (
       yield* DAG.decode(JSON, body)
     )
-    const commit = yield* self.agent.transact(changes)
+    const commit = yield* self.replica.transact(changes)
     self.revision = commit.after
     return yield* ok({
       before: commit.before,
@@ -178,32 +178,32 @@ export function* put(self, request) {
 
 /**
  * @typedef {object} Self
- * @property {Agent.Revision} revision - Current revision of the store.
+ * @property {Replica.Revision} revision - Current revision of the store.
  * @property {DB.API.Querier} store - The underlying data store.
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
- * @property {Agent.Session} agent - The agent session.
+ * @property {Replica.Replica} replica
  *
- * @typedef {Self & {store: Agent.Store}} MutableSelf
+ * @typedef {Self & {store: Replica.Store}} MutableSelf
  */
 
 /**
  * @template {DB.Selector} [Select=DB.Selector]
  * @param {Self} self
- * @param {Agent.Reference<Agent.Query<Select>>} id
+ * @param {Replica.Reference<Replica.Query<Select>>} id
  */
 export const subscribe = function* (self, id) {
   const channel = self.subscriptions.get(id.toString())
   if (channel) {
     return channel
   } else {
-    const { content } = Agent.$
+    const { content } = Replica.$
     const [selection] = yield* DB.query(self.store, {
       select: { content },
       where: [{ Case: [id, 'blob/content', content] }],
     })
     const bytes = selection?.content
     const query = bytes ? yield* Query.fromBytes(bytes) : null
-    const subscription = query ? yield* self.agent.subscribe(query) : null
+    const subscription = query ? yield* self.replica.subscribe(query) : null
     const source = subscription ? toEventSource(subscription.fork()) : null
     const channel = source ? broadcast(source) : null
     if (channel) {
@@ -277,7 +277,7 @@ export const error = (error, options) =>
   respond({ error }, { status: 500, ...options })
 
 /**
- * @param {Agent.Result} result
+ * @param {Replica.Result} result
  * @param {HTTPOptions} [options]
  */
 const respond = function* (result, { status = 200, statusText, headers } = {}) {

@@ -1,3 +1,2 @@
-export * as Agent from './agent.js'
-export * from './agent.js'
-export { transact, Task } from 'datalogia'
+export * from './replica.js'
+export * as Replica from './replica.js'

@@ -1,5 +1,5 @@
 import * as DB from 'datalogia'
-import { Task, Agent, refer, $ } from 'synopsys'
+import { Task, Replica, refer, $ } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 import * as Service from 'synopsys/service'
 import * as Subscription from './subscription.js'
@@ -16,7 +16,7 @@ export const testRemote = {
         const store = yield* Memory.open()
         const service = yield* Service.open({ store })
 
-        const remote = yield* Agent.open({
+        const remote = yield* Replica.open({
           remote: {
             url: new URL('http://localhost:8080'),
             fetch: service.fetch,
@@ -43,7 +43,7 @@ export const testRemote = {
         const store = yield* Memory.open()
         const service = yield* Service.open({ store })
 
-        const remote = yield* Agent.open({
+        const remote = yield* Replica.open({
           remote: {
             url: new URL('http://localhost:8080'),
             fetch: service.fetch,
@@ -66,13 +66,13 @@ export const testRemote = {
       Task.spawn(function* () {
         const store = yield* Memory.open()
         const service = yield* Service.open({ store })
-        const agent = yield* Agent.open({
+        const replica = yield* Replica.open({
           remote: {
             url: new URL('http://localhost:8080'),
             fetch: service.fetch,
           },
         })
-        return agent
+        return replica
       }),
   }),
 }

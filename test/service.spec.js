@@ -1,6 +1,6 @@
 import * as DB from 'datalogia'
 import * as Memory from 'synopsys/store/memory'
-import { Task, Agent, refer, $ } from 'synopsys'
+import { Task, Replica, refer, $ } from 'synopsys'
 import * as Service from 'synopsys/service'
 
 /**
@@ -141,7 +141,7 @@ export const testService = {
             select: {
               queries: ['?query'],
             },
-            where: [{ Case: [Agent.synopsys, 'db/query', '?query'] }],
+            where: [{ Case: [Replica.synopsys, 'db/query', '?query'] }],
           }),
         })
       )
@@ -154,7 +154,7 @@ export const testService = {
 
       const found = yield* DB.query(service.store, {
         select: { query: $.query },
-        where: [{ Case: [Agent.synopsys, 'synopsys/query', $.query] }],
+        where: [{ Case: [Replica.synopsys, 'synopsys/query', $.query] }],
       })
 
       assert.deepEqual(
@@ -177,7 +177,7 @@ export const testService = {
             select: {
               query: '?query',
             },
-            where: [{ Case: [Agent.synopsys, 'synopsys/query', '?query'] }],
+            where: [{ Case: [Replica.synopsys, 'synopsys/query', '?query'] }],
           }),
         })
       )
@@ -207,9 +207,9 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
       assert.deepEqual(service.subscriptions.size, 0, 'subscription is closed')
 
       assert.equal(
-        Object(service.agent).subscriptions.size,
+        Object(service.replica).subscriptions.size,
         0,
-        'agent subscriptions are also closed'
+        'subscriptions are also closed'
       )
 
       const retry = yield* Service.fetch(service, new Request(location))
@@ -283,7 +283,7 @@ data:[]\n\n`
       assert.equal(get.status, 200)
       assert.equal(get.headers.get('Content-Type'), 'text/event-stream')
 
-      yield* DB.transact(service.agent, [
+      yield* DB.transact(service.replica, [
         { Assert: [refer({ counter: {} }), 'counter/count', 1] },
       ])
 

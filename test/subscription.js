@@ -1,21 +1,21 @@
-import { Task, Agent, refer, $ } from 'synopsys'
+import { Task, Replica, refer, $ } from 'synopsys'
 
 /**
  * @param {object} options
- * @param {() => Task.Task<Agent.Session, Error>} options.connect
+ * @param {() => Task.Task<Replica.Session, Error>} options.connect
  * @returns {import('entail').Suite}
  */
 export const testSubscription = ({ connect }) => ({
   'iterate subscription': (assert) =>
     Task.spawn(function* () {
-      const agent = yield* connect()
+      const replica = yield* connect()
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
       const { collection, item, key, value } = $
 
-      const subscription = yield* agent.subscribe({
+      const subscription = yield* replica.subscribe({
         select: {
           collection,
           item: [
@@ -35,20 +35,20 @@ export const testSubscription = ({ connect }) => ({
 
       const selections = take(subscription, 3)
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
 
       yield* Task.sleep(1)
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Assert: [member, 'comment', 'does not affect query'] },
       ])
 
       yield* Task.sleep(1)
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])
@@ -85,19 +85,19 @@ export const testSubscription = ({ connect }) => ({
     }),
   'poll subscription': (assert) =>
     Task.spawn(function* () {
-      const agent = yield* connect()
+      const replica = yield* connect()
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
 
       const { collection, item, key, value } = $
 
-      const subscription = yield* agent.subscribe({
+      const subscription = yield* replica.subscribe({
         select: {
           collection,
           item: [
@@ -131,7 +131,7 @@ export const testSubscription = ({ connect }) => ({
         },
       ])
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])
@@ -153,19 +153,19 @@ export const testSubscription = ({ connect }) => ({
     }),
   'existing subscription': (assert) =>
     Task.spawn(function* () {
-      const agent = yield* connect()
+      const replica = yield* connect()
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      yield* agent.transact([
+      yield* replica.transact([
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
 
       const { collection, item, key, value } = $
 
-      const subscription = yield* agent.subscribe({
+      const subscription = yield* replica.subscribe({
         select: {
           collection,
           item: [
@@ -183,7 +183,7 @@ export const testSubscription = ({ connect }) => ({
         ],
       })
 
-      const duplicate = yield* agent.subscribe({
+      const duplicate = yield* replica.subscribe({
         select: {
           collection,
           item: [
@@ -206,9 +206,9 @@ export const testSubscription = ({ connect }) => ({
 })
 
 /**
- * @template {Agent.Selector} Select
+ * @template {Replica.Selector} Select
  * @param {number} limit
- * @param {Agent.Subscription<Select>} subscription
+ * @param {Replica.Subscription<Select>} subscription
  */
 const take = async (subscription, limit = Infinity) => {
   const results = []

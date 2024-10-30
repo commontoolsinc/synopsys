@@ -1,4 +1,4 @@
-import { Task, Agent, refer, variable } from 'synopsys'
+import { Task, Replica, refer, variable } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
@@ -8,12 +8,12 @@ export const testMatch = {
   'text/like': (assert) =>
     Task.spawn(function* () {
       const store = yield* Memory.open()
-      const agent = yield* Agent.open({ local: { store } })
+      const replica = yield* Replica.open({ local: { store } })
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })
 
-      yield* Agent.transact(agent, [
+      yield* Replica.transact(replica, [
         { Assert: [stuff, 'member', member] },
         { Assert: [member, 'message', "You've got an email!"] },
       ])
@@ -23,7 +23,7 @@ export const testMatch = {
       const key = variable()
       const value = variable()
 
-      const subscription = yield* agent.subscribe({
+      const subscription = yield* replica.subscribe({
         select: {
           collection,
           item: [
@@ -57,7 +57,7 @@ export const testMatch = {
         },
       ])
 
-      yield* Agent.transact(agent, [
+      yield* Replica.transact(replica, [
         { Retract: [member, 'message', "You've got an email!"] },
         { Assert: [member, 'message', 'You have an email!'] },
       ])

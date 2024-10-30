@@ -1,4 +1,4 @@
-import * as DAG from '../src/agent/dag.js'
+import * as DAG from '../src/replica/dag.js'
 import { Task, Link } from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 

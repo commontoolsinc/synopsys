@@ -1,13 +1,15 @@
-import * as Query from './agent/query.js'
-import * as Type from './agent/type.js'
-import * as Local from './agent/session/local.js'
-import * as Remote from './agent/session/remote.js'
+import * as Query from './replica/query.js'
+import * as Type from './replica/type.js'
+import * as Local from './replica/session/local.js'
+import * as Remote from './replica/session/remote.js'
 import { refer } from './datum/reference.js'
-import $, { variable } from './agent/query/scope.js'
+import $, { variable } from './replica/query/scope.js'
+export { Task } from 'datalogia'
+export * from './replica/type.js'
 
 export { _ } from 'datalogia'
-export * from './agent/type.js'
-export { refer, $, variable, Query }
+export * from './replica/type.js'
+export { refer, $, variable, Query, Type }
 /**
  * Entity where we store synopsys related state.
  */
@@ -21,8 +23,8 @@ export const synopsys = refer({ synopsys: {} })
  */
 
 /**
- * @typedef {object} Agent
- * @property {Type.Session} session
+ * @typedef {object} ReplicaState
+ * @property {Type.Replica} session
  * @property {Map<string, Type.Subscription>} subscriptions
  */
 
@@ -35,24 +37,24 @@ export function* open(options) {
     ? yield* Local.open(options.local)
     : yield* Remote.open(options.remote)
 
-  return new AgentView(session, new Map())
+  return new Replica(session, new Map())
 }
 
 /**
  * @template {Type.Selector} [Select=Type.Selector]
- * @param {Agent} agent
+ * @param {ReplicaState} self
  * @param {Type.Query<Select>} query
  * @returns {Type.Task<Type.Subscription<Select>, Error>}
  */
-export function* subscribe(agent, query) {
+export function* subscribe({ session, subscriptions }, query) {
   const bytes = yield* Query.toBytes(query)
   const key = refer(bytes).toString()
-  const subscription = agent.subscriptions.get(key)
+  const subscription = subscriptions.get(key)
   if (!subscription) {
-    const subscription = yield* agent.session.subscribe(query)
-    agent.subscriptions.set(key, subscription)
+    const subscription = yield* session.subscribe(query)
+    subscriptions.set(key, subscription)
     // Remove the subscription when it closes.
-    subscription.closed.then(() => agent.subscriptions.delete(key))
+    subscription.closed.then(() => subscriptions.delete(key))
     return subscription
   }
 
@@ -61,14 +63,14 @@ export function* subscribe(agent, query) {
 
 /**
  *
- * @param {Agent} agent
+ * @param {ReplicaState} self
  * @param {Type.Transaction} changes
  */
-export const transact = (agent, changes) => agent.session.transact(changes)
+export const transact = ({ session }, changes) => session.transact(changes)
 
-export class AgentView {
+class Replica {
   /**
-   * @param {Type.Session} session
+   * @param {Type.Replica} session
    * @param {Map<string, Type.Subscription>} subscriptions
    */
   constructor(session, subscriptions) {
