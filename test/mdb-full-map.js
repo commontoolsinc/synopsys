@@ -1,4 +1,5 @@
-import { Link, Task } from '../src/lib.js'
+import { Replica, Task, refer } from 'synopsys'
+import * as Store from 'synopsys/store/file'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
 
@@ -12,8 +13,12 @@ export const testLMDB = {
       const json = new URL(`./test-flat-file.json`, import.meta.url)
       yield* Task.wait(FS.rm(url, { recursive: true, force: true }))
       // yield* Task.wait(FS.rm(json, { recursive: true, force: true }))
-      const synopsys = yield* Service.open(url, {
+      const store = yield* Store.open({
+        url,
         mapSize: 3 * 1024 * 1024 * 1024,
+      })
+      const replica = yield* Replica.open({
+        local: { store },
       })
 
       const size = 1
@@ -24,7 +29,7 @@ export const testLMDB = {
         console.log(`Importing ${count}...`)
         const batch = [...generateBatch(count, size)]
         const { ok, error } = yield* Task.perform(
-          Service.transact(synopsys, batch)
+          Replica.transact(replica, batch)
         ).result()
 
         if (error) {
@@ -47,6 +52,6 @@ export const testLMDB = {
  */
 const generateBatch = function* (start, size) {
   for (let i = start; i < start + size; i++) {
-    yield { Assert: [Link.of({ count: i }), 'count', i] }
+    yield { Assert: [refer({ count: i }), 'count', i] }
   }
 }

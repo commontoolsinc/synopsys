@@ -1,6 +1,7 @@
 import { Task } from './lib.js'
 import * as HTTP from './http.js'
 import * as Service from './service.js'
+import * as Store from './store.js'
 import process from 'node:process'
 
 export const KiB = 1024
@@ -17,11 +18,16 @@ export const GiB = MiB * 1024
  */
 export const main = function* ({
   port = Number(process.env.PORT ?? 8080),
-  storeSize = Number(process.env.STORE_SIZE ?? (4 * GiB - 1)), // 4GiB causes LMDB error
+  storeSize = Number(process.env.STORE_SIZE ?? 4 * GiB - 1), // 4GiB causes LMDB error
   store = process.env.STORE ?? '../service-store',
 } = {}) {
-  const url = new URL(store, import.meta.url)
-  const service = yield* Service.open(url, { mapSize: storeSize })
+  const service = yield* Service.open({
+    store: yield* Store.open({
+      url: new URL(store, import.meta.url),
+      mapSize: storeSize,
+    }),
+  })
+
   try {
     const socket = yield* HTTP.listen({ port })
     const server = yield* Task.fork(serve(service, socket))
@@ -53,45 +59,8 @@ function* serve(service, socket) {
         break
       }
 
-      switch (event.request.method) {
-        case 'OPTIONS': {
-          event.respondWith(
-            new HTTP.Response(null, {
-              status: 204,
-              headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-                'Access-Control-Allow-Headers': 'Content-Type',
-              },
-            })
-          )
-          break
-        }
-        case 'PUT': {
-          const promise = Task.perform(
-            Service.openSession(service, event.request)
-          )
-          event.respondWith(promise)
-          break
-        }
-        case 'PATCH': {
-          const promise = Task.perform(Service.publish(service, event.request))
-          event.respondWith(promise)
-          break
-        }
-        case 'GET': {
-          const promise = Task.perform(
-            Service.subscribe(service, event.request)
-          )
-          event.respondWith(promise)
-          break
-        }
-        default: {
-          event.respondWith(
-            new HTTP.Response('Method Not Allowed', { status: 405 })
-          )
-        }
-      }
+      const response = Task.perform(Service.fetch(service, event.request))
+      event.respondWith(response)
     }
   } catch (error) {
     if (/** @type {{reason?:unknown}} */ (error).reason !== 'SIGINT') {

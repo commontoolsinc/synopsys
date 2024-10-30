@@ -1,7 +1,8 @@
-import * as DB from '../src/lib.js'
+import * as Memory from 'synopsys/store/memory'
+import * as Store from 'synopsys/store/file'
 import { transact } from 'datalogia'
 import * as OS from 'node:os'
-import { Link, Task } from '../src/lib.js'
+import { refer, Task } from '../src/lib.js'
 import { pathToFileURL } from 'node:url'
 import FS from 'node:fs'
 
@@ -11,8 +12,8 @@ import FS from 'node:fs'
 export const testScan = {
   'empty db has canonical status': (assert) =>
     Task.spawn(function* () {
-      const db = yield* DB.open()
-      const v = yield* DB.status(db)
+      const db = yield* Memory.open()
+      const v = yield* Memory.status(db)
       assert.deepEqual(v.id, 'NcuV3vKyQgcxiZDMdE37fv')
     }),
   'transaction updates id': (assert) =>
@@ -24,13 +25,13 @@ export const testScan = {
   'status reports current revision': (assert) =>
     Task.spawn(function* () {
       const { db, tx } = yield* loadTodo()
-      assert.deepEqual(yield* DB.status(db), tx.after)
+      assert.deepEqual(yield* Memory.status(db), tx.after)
     }),
   'scan by entity': (assert) =>
     Task.spawn(function* () {
       const { db, cause, list, milk, eggs, bread } = yield* loadTodo()
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { entity: list })),
+        new Set(yield* Memory.scan(db, { entity: list })),
         new Set(
           /** @type {const} */ ([
             [list, 'title', 'Todo List', cause],
@@ -42,7 +43,7 @@ export const testScan = {
       )
 
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { entity: milk })),
+        new Set(yield* Memory.scan(db, { entity: milk })),
         new Set(/** @type {const} */ ([[milk, 'title', 'Buy Milk', cause]]))
       )
     }),
@@ -50,7 +51,7 @@ export const testScan = {
     Task.spawn(function* () {
       const { db, cause, list, milk, eggs, bread } = yield* loadTodo()
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { attribute: 'todo' })),
+        new Set(yield* Memory.scan(db, { attribute: 'todo' })),
         new Set(
           /** @type {const} */ ([
             [list, 'todo', eggs, cause],
@@ -65,7 +66,7 @@ export const testScan = {
       const { db, cause, tx, list, milk, eggs, bread } = yield* loadTodo()
 
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { value: eggs })),
+        new Set(yield* Memory.scan(db, { value: eggs })),
         new Set(/** @type {const} */ ([[list, 'todo', eggs, cause]]))
       )
     }),
@@ -74,7 +75,7 @@ export const testScan = {
       const { db, cause, tx, list, milk, eggs, bread } = yield* loadTodo()
 
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { attribute: 'todo', value: eggs })),
+        new Set(yield* Memory.scan(db, { attribute: 'todo', value: eggs })),
         new Set(/** @type {const} */ ([[list, 'todo', eggs, cause]]))
       )
     }),
@@ -83,7 +84,7 @@ export const testScan = {
       const { db, cause, tx, list, milk, eggs, bread } = yield* loadTodo()
 
       assert.deepEqual(
-        new Set(yield* DB.scan(db, {})),
+        new Set(yield* Memory.scan(db, {})),
         new Set(
           /** @type {const} */ ([
             [milk, 'title', 'Buy Milk', cause],
@@ -94,7 +95,7 @@ export const testScan = {
             [list, 'todo', bread, cause],
             [list, 'todo', eggs, cause],
             [list, 'todo', milk, cause],
-            [cause, 'db/source', DB.CBOR.encode(tx.cause), cause],
+            [cause, 'db/source', Memory.CBOR.encode(tx.cause), cause],
           ])
         )
       )
@@ -105,13 +106,21 @@ export const testScan = {
 
       // not found if does not match
       assert.deepEqual(
-        yield* DB.scan(db, { entity: bread, attribute: 'done', value: false }),
+        yield* Memory.scan(db, {
+          entity: bread,
+          attribute: 'done',
+          value: false,
+        }),
         []
       )
 
       // finds if matches
       assert.deepEqual(
-        yield* DB.scan(db, { entity: bread, attribute: 'done', value: true }),
+        yield* Memory.scan(db, {
+          entity: bread,
+          attribute: 'done',
+          value: true,
+        }),
         /** @type {const} */ ([[bread, 'done', true, cause]])
       )
     }),
@@ -119,7 +128,7 @@ export const testScan = {
     Task.spawn(function* () {
       const { db, cause, bread, list } = yield* loadTodo()
 
-      const matches = yield* DB.scan(db, { entity: list, value: bread })
+      const matches = yield* Memory.scan(db, { entity: list, value: bread })
 
       assert.deepEqual(matches, [[list, 'todo', bread, cause]])
     }),
@@ -127,19 +136,13 @@ export const testScan = {
     Task.spawn(function* () {
       const { db, cause, bread } = yield* loadTodo()
 
-      const tx = yield* DB.transact(db, [{ Retract: [bread, 'done', true] }])
+      const tx = yield* Memory.transact(db, [
+        { Retract: [bread, 'done', true] },
+      ])
       assert.deepEqual(
-        new Set(yield* DB.scan(db, { entity: bread })),
+        new Set(yield* Memory.scan(db, { entity: bread })),
         new Set(/** @type {const} */ ([[bread, 'title', 'Buy Bread', cause]]))
       )
-    }),
-  'throws on unknown urls': (assert) =>
-    Task.spawn(function* () {
-      const result = yield* DB.open(
-        new URL('https://github.com/gozala/datura')
-      ).result()
-
-      assert.match(result?.error?.message, /Unsupported protocol\: https/)
     }),
   'works with LMDB': (assert) =>
     Task.spawn(function* () {
@@ -148,10 +151,10 @@ export const testScan = {
       const { db, tx } = yield* loadTodo(url)
       try {
         assert.deepEqual(tx.before.id, 'NcuV3vKyQgcxiZDMdE37fv')
-        assert.deepEqual(yield* DB.status(db), tx.after)
+        assert.deepEqual(yield* Memory.status(db), tx.after)
       } finally {
-        FS.rmdirSync(url, { recursive: true })
-        yield* DB.close(db)
+        FS.rmSync(url, { recursive: true })
+        yield* Memory.close(db)
       }
     }),
 }
@@ -161,12 +164,12 @@ export const testScan = {
  * @param {URL} [url]
  */
 function* loadTodo(url) {
-  const db = yield* DB.open(url)
+  const db = url ? yield* Store.open({ url }) : yield* Memory.open()
 
-  const list = Link.of({ title: 'Todo List' })
-  const milk = Link.of({ title: 'Buy Milk' })
-  const eggs = Link.of({ title: 'Buy Eggs' })
-  const bread = Link.of({ title: 'Buy Bread', done: true })
+  const list = refer({ title: 'Todo List' })
+  const milk = refer({ title: 'Buy Milk' })
+  const eggs = refer({ title: 'Buy Eggs' })
+  const bread = refer({ title: 'Buy Bread', done: true })
 
   const tx = yield* transact(db, [
     { Assert: [list, 'title', 'Todo List'] },
@@ -179,7 +182,7 @@ function* loadTodo(url) {
     { Assert: [bread, 'done', true] },
   ])
 
-  const cause = DB.Link.of(tx.cause)
+  const cause = refer(tx.cause)
 
   return {
     db,
