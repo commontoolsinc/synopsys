@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.0](https://github.com/commontoolsinc/synopsys/compare/v1.4.1...v2.0.0) (2024-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* implement replica abstraction
+
+### Features
+
+* agent implementation draft ([fbd77ed](https://github.com/commontoolsinc/synopsys/commit/fbd77ed679cc52f48622a335432e965e40cf1cf7))
+* implement position derivation logic ([0d16bf9](https://github.com/commontoolsinc/synopsys/commit/0d16bf950597255373d505f7c42d655286a6d3b2))
+* implement replica abstraction ([924fa59](https://github.com/commontoolsinc/synopsys/commit/924fa59196e8adcd6d5188f72b50c23cbcaecc4d))
+
+
+### Bug Fixes
+
+* misleading comments ([b1c64d3](https://github.com/commontoolsinc/synopsys/commit/b1c64d3972b2ec1eb222d3d0905272a696377522))
+* various session management issues ([6def97c](https://github.com/commontoolsinc/synopsys/commit/6def97c643e0b32b8d2c38c5227e6728741f6b3e))
+
 ## [1.4.1](https://github.com/commontoolsinc/synopsys/compare/v1.4.0...v1.4.1) (2024-10-15)
 
 
