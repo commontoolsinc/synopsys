@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/commontoolsinc/synopsys/compare/v2.0.0...v2.1.0) (2024-10-30)
+
+
+### Features
+
+* implement import support ([372ecf1](https://github.com/commontoolsinc/synopsys/commit/372ecf13ebefb03c4b9339d3c53a8c228c9557e3))
+
 ## [2.0.0](https://github.com/commontoolsinc/synopsys/compare/v1.4.1...v2.0.0) (2024-10-30)
 
 
