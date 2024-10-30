@@ -125,23 +125,11 @@ export class BroadcastStream {
     this.#source = source.getReader()
     this.#closed = channel()
     this.#ports = ports
-    // this.#abort = new AbortController()
     /** @type {Promise<undefined>} */
     this.closed = this.#closed.read()
     this.aborted = false
-
-    // // we abort the broadcast when abort signal is triggered.
-    // this.signal.addEventListener(
-    //   'abort',
-    //   () => this.abort(this.signal.reason),
-    //   { once: true }
-    // )
     this.#task = Task.perform(BroadcastStream.poll(this))
   }
-
-  // get signal() {
-  //   return this.#abort.signal
-  // }
 
   /**
    * Publishes chunk to all connected ports.
@@ -188,7 +176,6 @@ export class BroadcastStream {
     this.#ports.delete(port)
     // If last port was disconnected we abort this stream.
     if (this.#ports.size === 0) {
-      // this.#abort.abort()
       this.abort()
     }
   }
@@ -211,23 +198,17 @@ export class BroadcastStream {
       // When done close the broadcast channel and all connected ports.
       broadcast.close()
     } catch (reason) {
-      // // If we encountered exception during polling process we abort with
-      // // the reason.
-      // if (!broadcast.signal.aborted) {
-      //   broadcast.#abort.abort(reason)
-      // }
       broadcast.abort(reason)
     }
   }
 
   fork() {
-    const ports = this.#ports
     /** @type {ReadableStreamDefaultController<T>} */
     let port
     return new ReadableStream({
       start: (controller) => {
         port = controller
-        ports.add(port)
+        this.connect(port)
       },
       cancel: () => {
         this.disconnect(port)

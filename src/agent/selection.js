@@ -17,8 +17,8 @@ export const toEventSource = (source) =>
       const bytes = yield* toEventSourceMessage(selection)
       return [, [bytes]]
     },
+    ///* c8 ignore next 2 */ We don't really end subscriptions consumers cancel
     *close() {
-      ///* c8 ignore next */ We don't really end subscriptions consumers cancel
       return []
     },
   })
@@ -39,8 +39,8 @@ export const fromEventSource = (source) =>
       )
       return [, [selection]]
     },
+    ///* c8 ignore next 2 */ We don't really end subscriptions consumers cancel
     *close() {
-      ///* c8 ignore next */ We don't really end subscriptions consumers cancel
       return []
     },
   })
