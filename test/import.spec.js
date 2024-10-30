@@ -52,15 +52,21 @@ export const testImport = {
         select: {
           name,
           keywords: [{ at, keyword }],
-          // dependencies: [{ name: dependency, version }],
+          dependencies: [{ name: dependency, version }],
+          null: $.null,
+          score: $.score,
+          dev: $.dev,
         },
         where: [
           { Case: [entity, 'name', name] },
           { Case: [entity, 'null', nil] },
-          // { Case: [entity, 'dependencies', dependencies] },
+          { Case: [entity, 'dependencies', dependencies] },
           { Case: [entity, 'keywords', keywords] },
           { Case: [keywords, at, keyword] },
-          // { Case: [dependencies, dependency, version] },
+          { Case: [dependencies, dependency, version] },
+          { Case: [entity, 'null', $.null] },
+          { Case: [entity, 'score', $.score] },
+          { Case: [entity, 'dev', $.dev] },
         ],
       })
 
@@ -69,27 +75,38 @@ export const testImport = {
         .map(({ keyword }) => keyword)
 
       assert.deepEqual(foundKeywords, source.keywords)
+      assert.deepEqual(
+        groupKeywords.dependencies
+          .map(({ name, version }) => `${name}@${version}`)
+          .sort(),
+        [
+          '@canvas-js/okra@0.4.5',
+          '@canvas-js/okra-lmdb@0.2.0',
+          '@canvas-js/okra-memory@0.4.5',
+          '@ipld/dag-cbor@^9.2.1',
+          '@ipld/dag-json@10.2.2',
+          '@noble/hashes@1.3.3',
+          '@types/node@22.5.5',
+          'datalogia@^0.9.0',
+          'multiformats@^13.3.0',
+          'merkle-reference@^0.0.3',
+        ].sort()
+      )
 
-      const [match] = yield* query(store, {
-        select: {
-          name,
-          null: $.null,
-          score: $.score,
-          dev: $.dev,
+      assert.deepEqual(
+        {
+          ...groupKeywords,
+          keywords: null,
+          dependencies: null,
+          types: null,
         },
-        where: [
-          { Case: [entity, 'name', name] },
-          { Case: [entity, 'null', $.null] },
-          { Case: [entity, 'score', $.score] },
-          { Case: [entity, 'dev', $.dev] },
-        ],
-      })
-
-      assert.deepEqual(match, {
-        name: source.name,
-        null: source.null,
-        score: Number(source.score),
-        dev: source.dev,
-      })
+        {
+          ...source,
+          score: Number(source.score),
+          keywords: null,
+          dependencies: null,
+          types: null,
+        }
+      )
     }),
 }

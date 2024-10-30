@@ -67,7 +67,7 @@
     "@ipld/dag-json": "10.2.2",
     "@noble/hashes": "1.3.3",
     "@types/node": "22.5.5",
-    "datalogia": "^0.9.0",
+    "datalogia": "^0.9.1",
     "multiformats": "^13.3.0",
     "merkle-reference": "^0.0.3"
   },
