@@ -10,7 +10,10 @@ export type {
   InferBindings as Selection,
   Result,
   Variant,
+  Fact,
   Variable,
+  Attribute,
+  Instantiation as Import,
 } from 'datalogia'
 export type { BlockEncoder, BlockDecoder } from 'multiformats'
 export type { Task } from 'datalogia/task'
@@ -21,10 +24,13 @@ import type {
   Transaction,
   Query,
   Variable,
+  API,
 } from 'datalogia'
 import type { Invocation, Task } from 'datalogia/task'
 import type { Commit, Database as Store } from '../store/okra.js'
 import { Phantom } from 'multiformats'
+
+export type Constant = API.Constant
 
 export { Store, Commit }
 export type Revision = { id: string }

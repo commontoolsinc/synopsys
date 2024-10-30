@@ -1,5 +1,4 @@
 import * as CBOR from '@ipld/dag-cbor'
-import { Link } from 'datalogia'
 import * as Reference from './datum/reference.js'
 
 /**

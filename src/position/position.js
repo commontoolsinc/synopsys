@@ -221,6 +221,6 @@ export const insert = (bias, at = {}) => {
     return after(bias, at.after)
   } else {
     // We do not need to specify minor part because 0s are implicit.
-    return create(Major.zero())
+    return create(Major.zero(), BLANK, bias)
   }
 }
