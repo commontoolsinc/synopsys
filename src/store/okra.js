@@ -8,6 +8,7 @@ import * as Attribute from '../datum/attribute.js'
 import * as Entity from '../datum/entity.js'
 import * as Reference from '../datum/reference.js'
 import * as Datum from '../datum.js'
+import * as Fact from '../fact.js'
 
 const { Bytes } = Constant
 export { Task, CBOR }
@@ -319,52 +320,77 @@ export const transact = (db, changes) =>
       const time = Date.now()
 
       /** @type {Change} */
-      const cause = {
+      const commit = {
         origin: hash,
         time,
         transaction: changes,
       }
-      const tx = Reference.of(cause)
+      const cause = Reference.of(commit)
 
-      /** @type {{Assert: API.Fact}[]} */
-      const assertions = [{ Assert: [tx, 'db/source', CBOR.encode(cause)] }]
+      const [...delta] = entries(
+        [{ Assert: [cause, 'db/source', CBOR.encode(commit)] }, ...changes],
+        cause
+      )
 
-      for (const instruction of [...assertions, ...changes]) {
-        if (instruction.Assert) {
-          const [entity, attribute, value] = instruction.Assert
-          const fact = Datum.toBytes([...instruction.Assert, tx])
-
-          const e = Entity.toBytes(entity)
-          const a = Attribute.toBytes(attribute)
-          const v = Entity.toBytes(Reference.of(value))
-
-          writer.set(toSearchKey([EAVT, e, a, v]), fact)
-          writer.set(toSearchKey([AEVT, a, e, v]), fact)
-          writer.set(toSearchKey([VAET, v, a, e]), fact)
-        } else if (instruction.Retract) {
-          const [entity, attribute, value] = instruction.Retract
-          const e = Entity.toBytes(entity)
-          const a = Attribute.toBytes(attribute)
-          const v = Entity.toBytes(Reference.of(value))
-
-          const key = toSearchKey([EAVT, e, a, v])
-          const entries = writer.entries(toLowerBound(key), toUpperBound(key))
-          for (const [key] of entries) {
-            writer.delete(key)
-          }
-          writer.delete(toSearchKey([EAVT, e, a, v]))
-          writer.delete(toSearchKey([AEVT, a, e, v]))
-          writer.delete(toSearchKey([VAET, v, a, e]))
+      for (const [key, value] of delta) {
+        if (value == null) {
+          writer.delete(key)
+        } else {
+          writer.set(key, value)
         }
       }
 
       return {
         before: new Revision(root),
         after: new Revision(writer.getRoot()),
-        cause,
+        cause: commit,
       }
     })
   )
+
+/**
+ * Iterates derived [key value] pairs from given transaction.
+ *
+ * @param {API.Transaction} transaction
+ * @param {Reference.Reference<Change>} cause
+ * @returns {Iterable<[key:Uint8Array, value?:Uint8Array]>}
+ */
+function* entries(transaction, cause) {
+  for (const change of transaction) {
+    if (change.Assert) {
+      const [entity, attribute, value] = change.Assert
+      const datum = Datum.toBytes([entity, attribute, value, cause])
+      for (const key of keys(change.Assert)) {
+        yield [key, datum]
+      }
+    }
+    if (change.Retract) {
+      for (const key of keys(change.Retract)) {
+        yield [key, undefined]
+      }
+    }
+    if (change.Import) {
+      for (const [entity, attribute, value] of Fact.iterate(change.Import)) {
+        const datum = Datum.toBytes([entity, attribute, value, cause])
+        for (const key of keys([entity, attribute, value])) {
+          yield [key, datum]
+        }
+      }
+    }
+  }
+}
+
+/**
+ * @param {API.Fact} fact
+ */
+function* keys([entity, attribute, value]) {
+  const e = Entity.toBytes(entity)
+  const a = Attribute.toBytes(attribute)
+  const v = Entity.toBytes(Reference.of(value))
+  yield toSearchKey([EAVT, e, a, v])
+  yield toSearchKey([AEVT, a, e, v])
+  yield toSearchKey([VAET, v, a, e])
+}
 
 /**
  *
