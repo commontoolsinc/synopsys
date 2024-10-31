@@ -33,7 +33,7 @@ export const testImport = {
       }
 
       const entity = refer(source)
-      const commit = yield* Replica.transact(replica, [{ Import: source }])
+      yield* Replica.transact(replica, [{ Import: source }])
 
       const {
         name,
@@ -48,7 +48,7 @@ export const testImport = {
 
       // TODO: Update test when grouping issue is fixed
       // @see https://github.com/Gozala/datalogia/issues/50
-      const [groupKeywords] = yield* query(store, {
+      const [groupKeywords, ...rest] = yield* query(store, {
         select: {
           name,
           keywords: [{ at, keyword }],
@@ -108,5 +108,7 @@ export const testImport = {
           types: null,
         }
       )
+
+      assert.deepEqual(rest, [])
     }),
 }
