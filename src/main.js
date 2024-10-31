@@ -2,6 +2,7 @@ import { Task } from './lib.js'
 import * as HTTP from './http.js'
 import * as Service from './service.js'
 import * as Store from './store.js'
+import * as Blobs from './blob.js'
 import process from 'node:process'
 
 export const KiB = 1024
@@ -19,18 +20,23 @@ export const GiB = MiB * 1024
 export const main = function* ({
   port = Number(process.env.PORT ?? 8080),
   storeSize = Number(process.env.STORE_SIZE ?? 4 * GiB - 1), // 4GiB causes LMDB error
-  store = process.env.STORE ?? '../service-store',
+  store = process.env.STORE ?? '../service-store/',
 } = {}) {
+  const url = new URL(store, import.meta.url)
   const service = yield* Service.open({
-    store: yield* Store.open({
-      url: new URL(store, import.meta.url),
+    data: yield* Store.open({
+      url,
       mapSize: storeSize,
+    }),
+    blobs: yield* Blobs.open({
+      url: new URL('./blobs/', `${url}`),
     }),
   })
 
   try {
     const socket = yield* HTTP.listen({ port })
     const server = yield* Task.fork(serve(service, socket))
+    console.log(`Listening ${HTTP.endpoint(socket)}`)
     const reason = yield* Task.wait(onTerminate())
     server.abort(reason)
   } finally {

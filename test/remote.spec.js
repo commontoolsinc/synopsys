@@ -1,6 +1,7 @@
 import * as DB from 'datalogia'
 import { Task, Replica, refer, $ } from 'synopsys'
-import * as Memory from 'synopsys/store/memory'
+import * as Store from 'synopsys/store/memory'
+import * as Blobs from 'synopsys/blob/memory'
 import * as Service from 'synopsys/service'
 import * as Subscription from './subscription.js'
 
@@ -13,8 +14,9 @@ export const testRemote = {
   transaction: {
     basic: (assert) =>
       Task.spawn(function* () {
-        const store = yield* Memory.open()
-        const service = yield* Service.open({ store })
+        const store = yield* Store.open()
+        const blobs = yield* Blobs.open()
+        const service = yield* Service.open({ data: store, blobs })
 
         const remote = yield* Replica.open({
           remote: {
@@ -40,8 +42,9 @@ export const testRemote = {
 
     'invalid transaction': (assert) =>
       Task.spawn(function* () {
-        const store = yield* Memory.open()
-        const service = yield* Service.open({ store })
+        const store = yield* Store.open()
+        const blobs = yield* Blobs.open()
+        const service = yield* Service.open({ data: store, blobs })
 
         const remote = yield* Replica.open({
           remote: {
@@ -64,8 +67,9 @@ export const testRemote = {
   subscription: Subscription.testSubscription({
     connect: () =>
       Task.spawn(function* () {
-        const store = yield* Memory.open()
-        const service = yield* Service.open({ store })
+        const store = yield* Store.open()
+        const blobs = yield* Blobs.open()
+        const service = yield* Service.open({ data: store, blobs })
         const replica = yield* Replica.open({
           remote: {
             url: new URL('http://localhost:8080'),

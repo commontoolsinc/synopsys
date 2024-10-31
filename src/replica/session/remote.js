@@ -2,6 +2,7 @@ import * as Type from '../type.js'
 import * as Query from '../query.js'
 import * as DB from 'datalogia'
 import * as Selection from '../selection.js'
+import * as Subscription from '../subscription.js'
 import { Task } from 'datalogia'
 import * as DAG from '../dag.js'
 import * as JSON from '@ipld/dag-json'
@@ -44,8 +45,10 @@ export function* subscribe(session, query) {
   const request = new Request(new URL(id.toString(), session.url).href, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json',
+      'content-type': Query.contentType,
+      accept: Subscription.contentType,
     },
+    redirect: 'manual',
     body: bytes,
   })
   const response = yield* Task.wait(session.fetch(request))
@@ -106,7 +109,14 @@ class Remote {
       case 302:
       case 303:
         return await this.source.fetch(
-          new Request(/** @type {string} */ (response.headers.get('Location')))
+          new Request(
+            /** @type {string} */ (response.headers.get('Location')),
+            {
+              headers: {
+                accept: request.headers.get('accept') ?? 'none',
+              },
+            }
+          )
         )
       default: {
         return response

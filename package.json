@@ -57,6 +57,16 @@
       "types": "./dist/src/store/file.d.ts",
       "import": "./src/store/file.js",
       "default": "./src/store/file.js"
+    },
+    "./blob/memory": {
+      "types": "./dist/src/blob/memory.d.ts",
+      "import": "./src/blob/memory.js",
+      "default": "./src/blob/memory.js"
+    },
+    "./blob/disk": {
+      "types": "./dist/src/blob/disk.d.ts",
+      "import": "./src/blob/disk.js",
+      "default": "./src/blob/disk.js"
     }
   },
   "dependencies": {

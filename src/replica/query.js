@@ -7,6 +7,8 @@ import { Var } from 'datalogia'
 import { Reference } from 'merkle-reference'
 import Scope from './query/scope.js'
 
+export const contentType = `application/synopsys-query+json`
+
 /**
  * Takes JSON formatted query and return a query object with variables
  * expected by the database.
