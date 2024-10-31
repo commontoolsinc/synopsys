@@ -31,7 +31,7 @@ export function* get({ blobs }, key) {
   if (blob) {
     return blob
   } else {
-    throw new RangeError(`Blob ${key} not found`)
+    throw new RangeError(`Blob ${key} was not found`)
   }
 }
 

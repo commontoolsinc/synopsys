@@ -391,8 +391,7 @@ export const get = function* (self, request) {
   if (url.pathname === '/') {
     return yield* ok({}, { status: 404 })
   }
-  const accept =
-    request.headers.get('content-type') ?? 'application/octet-stream'
+  const accept = request.headers.get('accept')
 
   switch (accept) {
     case Selection.contentType:
@@ -419,31 +418,36 @@ export function* getSubscription(self, request) {
     return yield* ok({}, { status: 404 })
   }
 
-  const id = url.pathname.slice(1)
-  const query = Reference.fromString(id, null)
-  if (query == null) {
-    return yield* error(
-      { message: `Query ${id} was not found` },
-      { status: 404 }
-    )
-  }
-  const source = yield* subscribe(self, query)
+  try {
+    const id = url.pathname.slice(1)
+    const query = Reference.fromString(id, null)
+    if (query == null) {
+      return yield* error(
+        { message: `Query ${id} was not found` },
+        { status: 404 }
+      )
+    }
 
-  if (source) {
-    return new Response(source.fork(), {
-      status: 200,
-      headers: {
-        ...CORS,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
-  } else {
-    return yield* error(
-      { message: `Query ${id} was not found` },
-      { status: 404 }
-    )
+    const source = yield* subscribe(self, query)
+
+    if (source) {
+      return new Response(source.fork(), {
+        status: 200,
+        headers: {
+          ...CORS,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
+    } else {
+      return yield* error(
+        { message: `Query ${id} was not found` },
+        { status: 404 }
+      )
+    }
+  } catch (reason) {
+    return yield* error({ message: Object(reason).message }, { status: 400 })
   }
 }
 

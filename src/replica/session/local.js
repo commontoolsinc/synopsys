@@ -71,7 +71,7 @@ class LocalSource extends ReadableStream {
         // get a selection forward it downstream and break the loop until the
         // next pull from the subscriber.
         while (!this.cancelled) {
-          const poll = Task.perform(this.poll())
+          const poll = Task.perform(this.poll(subscriber))
           const selection = await poll
           // If we got a selection we enqueue it to the subscriber and break the
           // loop.
@@ -99,7 +99,11 @@ class LocalSource extends ReadableStream {
     this.session = options.session
   }
 
-  *poll() {
+  /**
+   * @param {ReadableStreamDefaultController} subscriber
+   * @returns
+   */
+  *poll(subscriber) {
     // If we have revision we wait for the new session commit before we
     // re-evaluate the query. If we don not have revision yet we want to
     // evaluate the query immediately.
@@ -114,7 +118,13 @@ class LocalSource extends ReadableStream {
       }
     }
 
-    const selection = yield* DB.query(this.session.store, this.query)
+    const result = yield* DB.query(this.session.store, this.query).result()
+    if (result.error) {
+      subscriber.close()
+      this.cancelled = true
+      return null
+    }
+    const selection = result.ok
     // If stream was cancelled while we were evaluating a query we abort as
     // subscriber is no longer interested in the results.
     ///* c8 ignore next 3 */ not sure how to test this

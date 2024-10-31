@@ -1,7 +1,7 @@
 import * as DB from 'datalogia'
 import * as Store from 'synopsys/store/memory'
 import * as Blobs from 'synopsys/blob/memory'
-import { Task, Replica, refer, $ } from 'synopsys'
+import { Task, Replica, refer, $, Query } from 'synopsys'
 import * as Service from 'synopsys/service'
 
 /**
@@ -28,7 +28,7 @@ export const testService = {
       )
       assert.equal(
         options.headers.get('Access-Control-Allow-Headers'),
-        'Content-Type'
+        'Content-Type, Range, Accept'
       )
 
       yield* Service.close(service)
@@ -108,7 +108,7 @@ export const testService = {
       assert.equal(get.status, 404)
       assert.equal(get.headers.get('Content-Type'), 'application/json')
       assert.deepEqual(yield* Task.wait(get.json()), {
-        error: { message: `Query jibberish was not found` },
+        error: { message: `Blob jibberish was not found` },
       })
     }),
   'rejects invalid query': (assert) =>
@@ -123,6 +123,7 @@ export const testService = {
         new Request('https://localhost:8080', {
           method: 'PUT',
           body: JSON.stringify({ id: 'NcuV3vKyQgcxiZDMdE37fv' }),
+          headers: { 'Content-Type': Query.contentType },
         })
       )
 
@@ -145,6 +146,7 @@ export const testService = {
         service,
         new Request('http://localhost:8080', {
           method: 'PUT',
+          headers: { 'Content-Type': Query.contentType },
           body: JSON.stringify({
             select: {
               queries: ['?query'],
@@ -182,6 +184,7 @@ export const testService = {
         service,
         new Request('http://localhost:8080', {
           method: 'PUT',
+          headers: { 'Content-Type': Query.contentType },
           body: JSON.stringify({
             select: {
               query: '?query',
@@ -194,7 +197,12 @@ export const testService = {
       assert.equal(put.status, 303, 'redirects to the query')
       const location = put.headers.get('Location') ?? ''
 
-      const get = yield* Service.fetch(service, new Request(location))
+      const get = yield* Service.fetch(
+        service,
+        new Request(location, {
+          headers: { Accept: 'text/event-stream' },
+        })
+      )
       assert.equal(get.status, 200)
       assert.equal(get.headers.get('Content-Type'), 'text/event-stream')
 
@@ -221,7 +229,12 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
         'subscriptions are also closed'
       )
 
-      const retry = yield* Service.fetch(service, new Request(location))
+      const retry = yield* Service.fetch(
+        service,
+        new Request(location, {
+          headers: { Accept: 'text/event-stream' },
+        })
+      )
       assert.equal(retry.status, 200, 'still got new event source')
       assert.equal(retry.headers.get('Content-Type'), 'text/event-stream')
     }),
@@ -235,7 +248,10 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
       const get = yield* Service.fetch(
         service,
         new Request(
-          'http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef'
+          'http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef',
+          {
+            headers: { Accept: 'application/json' },
+          }
         )
       )
       assert.equal(get.status, 404)
@@ -258,6 +274,10 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
         service,
         new Request('http://localhost:8080', {
           method: 'PUT',
+          headers: {
+            'Content-Type': Query.contentType,
+            Accept: 'text/event-stream',
+          },
           body: JSON.stringify({
             select: {
               count: '?count',
@@ -272,7 +292,12 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
       assert.equal(put.status, 303, 'redirects to the query')
       const location = put.headers.get('Location') ?? ''
 
-      const get = yield* Service.fetch(service, new Request(location))
+      const get = yield* Service.fetch(
+        service,
+        new Request(location, {
+          headers: { Accept: 'text/event-stream' },
+        })
+      )
       assert.equal(get.status, 200)
       assert.equal(get.headers.get('Content-Type'), 'text/event-stream')
 
@@ -288,7 +313,12 @@ event:change
 data:[]\n\n`
       )
 
-      const concurrent = yield* Service.fetch(service, new Request(location))
+      const concurrent = yield* Service.fetch(
+        service,
+        new Request(location, {
+          headers: { Accept: 'text/event-stream' },
+        })
+      )
       assert.equal(concurrent.status, 200, 'still got new event source')
       assert.equal(concurrent.headers.get('Content-Type'), 'text/event-stream')
       assert.equal(get.status, 200)

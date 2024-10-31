@@ -21,10 +21,8 @@ export function* open(options) {
  */
 export function* put({ url }, key, blob) {
   const target = new URL(`${key}`, url)
-  console.log(`Writing to ${target}`)
   const write = writeFile(target, blob.stream())
   yield* Task.wait(write)
-  console.log(`Wrote to ${target}`)
   return {}
 }
 
