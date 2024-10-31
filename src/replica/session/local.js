@@ -6,7 +6,7 @@ import { broadcast, channel } from '../sync.js'
 
 /**
  * @typedef {object} Open
- * @property {Type.Store} source.store
+ * @property {Type.DataStore} source.store
  */
 
 /**
@@ -16,7 +16,7 @@ import { broadcast, channel } from '../sync.js'
  * stop listening for commits.
  *
  * @typedef {object} LocalSession
- * @property {Type.Store} store
+ * @property {Type.DataStore} store
  * @property {Type.Reader<Type.Commit, never>} transaction
  */
 
@@ -158,7 +158,7 @@ export function* transact(session, changes) {
 class Local {
   /**
    *
-   * @param {Type.Store} store
+   * @param {Type.DataStore} store
    */
   constructor(store) {
     this.store = store

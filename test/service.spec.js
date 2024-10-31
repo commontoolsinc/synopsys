@@ -1,5 +1,6 @@
 import * as DB from 'datalogia'
-import * as Memory from 'synopsys/store/memory'
+import * as Store from 'synopsys/store/memory'
+import * as Blobs from 'synopsys/blob/memory'
 import { Task, Replica, refer, $ } from 'synopsys'
 import * as Service from 'synopsys/service'
 
@@ -10,7 +11,8 @@ export const testService = {
   'options request': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const options = yield* Service.fetch(
@@ -34,7 +36,8 @@ export const testService = {
   'patch transacts data': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const counter = refer({ counter: {} })
@@ -56,7 +59,8 @@ export const testService = {
   'unsupported method': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const unsupported = yield* Service.fetch(
@@ -73,7 +77,8 @@ export const testService = {
   'GET /': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const get = yield* Service.fetch(
@@ -91,7 +96,8 @@ export const testService = {
   'GET /jibberish': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const get = yield* Service.fetch(
@@ -108,7 +114,8 @@ export const testService = {
   'rejects invalid query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const put = yield* Service.fetch(
@@ -130,7 +137,8 @@ export const testService = {
   'saves good query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const put = yield* Service.fetch(
@@ -152,7 +160,7 @@ export const testService = {
         `http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef`
       )
 
-      const found = yield* DB.query(service.store, {
+      const found = yield* DB.query(service.data, {
         select: { query: $.query },
         where: [{ Case: [Replica.synopsys, 'synopsys/query', $.query] }],
       })
@@ -166,7 +174,8 @@ export const testService = {
   'returns event source when getting query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const put = yield* Service.fetch(
@@ -219,7 +228,8 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
   'fails to find query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const get = yield* Service.fetch(
@@ -240,7 +250,8 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
   'concurrent subscriptions': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        store: yield* Memory.open(),
+        data: yield* Store.open(),
+        blobs: yield* Blobs.open(),
       })
 
       const put = yield* Service.fetch(

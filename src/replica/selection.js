@@ -5,6 +5,8 @@ import * as Type from './type.js'
 import { of as refer } from '../datum/reference.js'
 import * as UTF8 from '../utf8.js'
 
+export const contentType = `application/synopsys+json`
+
 /**
  * @param {ReadableStream<Type.Selection<Type.Selector>[]>} source
  */

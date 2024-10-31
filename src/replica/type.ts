@@ -27,14 +27,22 @@ import type {
   API,
 } from 'datalogia'
 import type { Invocation, Task } from 'datalogia/task'
-import type { Commit, Database as Store } from '../store/okra.js'
+import type { Commit, Database as DataStore } from '../store/okra.js'
 import { Phantom } from 'multiformats'
 
 export type Constant = API.Constant
 
-export { Store, Commit }
+export { DataStore, Commit }
 export type Revision = { id: string }
 
+export interface BlobReader {
+  get(key: string): Task<Blob, Error>
+}
+export interface BlobWriter {
+  put(key: string, blob: Blob): Task<{}, Error>
+}
+
+export interface BlobStore extends BlobReader, BlobWriter {}
 /**
  * A directed acyclic graph.
  */
