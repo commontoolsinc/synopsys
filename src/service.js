@@ -7,10 +7,12 @@ import * as Reference from './datum/reference.js'
 import * as Query from './replica/query.js'
 import * as Subscription from './replica/subscription.js'
 import * as Selection from './replica/selection.js'
+import * as Fact from './fact.js'
 import { refer, synopsys } from './replica.js'
 import { toEventSource } from './replica/selection.js'
 import { broadcast } from './replica/sync.js'
 import * as DAG from './replica/dag.js'
+import { access, write } from 'fs'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -91,6 +93,8 @@ export const fetch = function* (self, request) {
       return yield* patch(self, request)
     case 'GET':
       return yield* get(self, request)
+    case 'POST':
+      return yield* post(self, request)
     default:
       return yield* error(
         { message: 'Method not allowed' },
@@ -169,6 +173,23 @@ export function* put(self, request) {
  * @param {Request} request
  * @returns {Task.Task<Response, Error>}
  */
+export function* post(self, request) {
+  const accept = request.headers.get('accept')
+  switch (accept) {
+    case 'application/vnd.ipld.merkle-reference': {
+      return yield* identify(self, request)
+    }
+    default: {
+      return yield* error({ message: 'Not Acceptable' }, { status: 406 })
+    }
+  }
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ * @returns {Task.Task<Response, Error>}
+ */
 export function* importQuery(self, request) {
   const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
 
@@ -219,7 +240,7 @@ export function* importQuery(self, request) {
 export function* importJSON(self, request) {
   const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
   try {
-    const json = yield* DAG.decode(JSON, body)
+    const json = JSON.decode(body)
     const commit = yield* transact(
       self,
       /** @type {Replica.Transaction} */ ([{ Import: json }])
@@ -236,6 +257,23 @@ export function* importJSON(self, request) {
         statusText: 'Invalid JSON payload',
       }
     )
+  }
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ * @returns {Task.Task<Response, Error>}
+ */
+export function* identify(self, request) {
+  const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
+  const contentType = request.headers.get('content-type')
+  const data = contentType === 'application/json' ? JSON.decode(body) : body
+  try {
+    const reference = refer(data)
+    return yield* ok({ id: reference.toString() })
+  } catch (reason) {
+    return yield* error({ message: Object(reason).message }, { status: 400 })
   }
 }
 
