@@ -1,7 +1,7 @@
 import * as Type from './type.js'
 import { isLink } from 'multiformats/link'
+import { Task } from 'datalogia'
 import { refer, Reference } from 'merkle-reference'
-import { code } from '@ipld/dag-cbor'
 
 /**
  * @typedef {object} Options
@@ -34,19 +34,21 @@ import { code } from '@ipld/dag-cbor'
  * @param {unknown} data
  * @param {Options} options
  */
-export const from = (
+export const from = function* (
   data,
   options = { null: null, hole: null, implicit: null }
-) => fromUnknown(data, options, new Set())
+) {
+  return yield* fromUnknown(data, options, [])
+}
 
 /**
  * @param {unknown} data
  * @param {Options} options
- * @param {Set<unknown>} seen
+ * @param {unknown[]} seen
  * @returns {Type.Task<Type.DAG, TypeError>}
  */
 function* fromUnknown(data, options, seen) {
-  if (seen.has(data)) {
+  if (seen.includes(data)) {
     throw new TypeError(`Can not encode circular structure`)
   }
 
@@ -83,34 +85,41 @@ function* fromUnknown(data, options, seen) {
   // If it is an array we iterate and collect all the members substituting
   // them as necessary.
   if (Array.isArray(data)) {
-    seen.add(data)
-    return yield* fromArray(data, options, new Set(seen))
+    const size = seen.push(data)
+    const out = yield* fromArray(data, options, seen)
+    seen.length = size
+    return out
   }
 
   // If it is an object with `toJSON` method we substitute it with the result
   // of importing `toJSON` method return value.
   if (typeof (/** @type {{toJSON?:unknown}} */ (data).toJSON) === 'function') {
-    seen.add(data)
+    const size = seen.push(data)
     const json = /** @type {{toJSON():unknown}} */ (data).toJSON()
-    return yield* fromUnknown(json, options, new Set(seen))
+
+    const out = yield* fromUnknown(json, options, seen)
+    seen.length = size
+    return out
   }
 
   // If any other object we are going to import it as an object.
   if (typeof data === 'object') {
-    seen.add(data)
-    return yield* fromObject(data, options, new Set(seen))
+    const size = seen.push(data)
+    const out = yield* fromObject(data, options, seen)
+    seen.length = size
+    return out
   }
 
+  // yield* Task.sleep(0)
   return data
 }
 
 /**
  * @param {unknown[]} data
  * @param {Options} options
- * @param {Set<unknown>} seen
+ * @param {unknown[]} seen
  */
 function* fromArray(data, options, seen) {
-  seen.add(data)
   const elements = []
   for (const element of data) {
     switch (typeof element) {
@@ -155,7 +164,7 @@ function* fromArray(data, options, seen) {
 /**
  * @param {{}} data
  * @param {Options} options
- * @param {Set<unknown>} seen
+ * @param {unknown[]} seen
  */
 function* fromObject(data, options, seen) {
   /** @type {Record<string, unknown>} */
