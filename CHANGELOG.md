@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.2.0](https://github.com/commontoolsinc/synopsys/compare/v2.1.0...v2.2.0) (2024-10-31)
+
+
+### Features
+
+* implement blob store ([0a77212](https://github.com/commontoolsinc/synopsys/commit/0a77212ed06751102b9e528ff0e2e124c38cc8fb))
+* implement blob store ([afb6b89](https://github.com/commontoolsinc/synopsys/commit/afb6b893846188f5c50e64b97e5fdf8530510926))
+
+
+### Bug Fixes
+
+* add package.json modifications ([d2d81d2](https://github.com/commontoolsinc/synopsys/commit/d2d81d246b22d6097b0c2b2649331d5d747e5660))
+* failing tests ([41c8ac3](https://github.com/commontoolsinc/synopsys/commit/41c8ac3f609c92ba70efae423f0abe5196510295))
+* grouping issues ([d588aea](https://github.com/commontoolsinc/synopsys/commit/d588aeacb26d617c077ef3cd32a4a5fdb43fdb5a))
+* hopefully really fix this time ([0709131](https://github.com/commontoolsinc/synopsys/commit/070913198992466e34c4b018035300996b984a6b))
+* hopefully really fix this time ([29d18e7](https://github.com/commontoolsinc/synopsys/commit/29d18e7fa712678d42d8245f507efd4850b22834))
+
 ## [2.1.0](https://github.com/commontoolsinc/synopsys/compare/v2.0.0...v2.1.0) (2024-10-30)
 
 
