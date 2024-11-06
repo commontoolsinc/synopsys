@@ -1,5 +1,8 @@
 import { Reference, refer, base32 } from 'merkle-reference'
 import { Link, API } from 'datalogia'
+import * as Type from '../replica/type.js'
+
+export { Reference }
 
 /**
  * Multiformat code for the merkle reference.
@@ -102,3 +105,10 @@ export const fromString = (source, implicit) => {
 export const of = (value) => /** @type {Reference<T>} */ (refer(value))
 
 export { of as refer }
+
+/**
+ * @template {Type.Reference|unknown} T
+ * @param {T} value
+ * @returns {value is Reference}
+ */
+export const is = (value) => Reference.is(value)

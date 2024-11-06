@@ -327,12 +327,18 @@ export const transact = (db, changes) =>
       }
       const cause = Reference.of(commit)
 
-      const [...delta] = entries(
-        [{ Assert: [cause, 'db/source', CBOR.encode(commit)] }, ...changes],
+      for (const [key, value] of entries(
+        [{ Assert: [cause, 'db/source', CBOR.encode(commit)] }],
         cause
-      )
+      )) {
+        if (value == null) {
+          writer.delete(key)
+        } else {
+          writer.set(key, value)
+        }
+      }
 
-      for (const [key, value] of delta) {
+      for (const [key, value] of entries(changes, cause)) {
         if (value == null) {
           writer.delete(key)
         } else {

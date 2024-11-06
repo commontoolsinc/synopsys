@@ -13,36 +13,41 @@ export const toBytes = ([entity, attribute, value]) => {}
  * @returns {Generator<Type.Fact, Type.Reference<Source>>}
  */
 export const iterate = function* (source) {
-  const entity = refer(source)
+  /** @type {Record<string, Type.Constant>} */
+  const output = {}
   for (const [key, value] of Object.entries(source)) {
     switch (typeof value) {
       case 'boolean':
       case 'number':
       case 'bigint':
       case 'string':
-        yield [entity, key, value]
+        output[key] = value
         break
       case 'object': {
         if (Constant.is(value)) {
-          yield [entity, key, value]
+          output[key] = value
         } else if (Array.isArray(value)) {
           let at
-          const array = refer(value)
+          /** @type {Record<string, Type.Constant>} */
+          const nested = {}
           for (const member of value) {
             if (Constant.is(member)) {
               const element = refer(member)
               at = Position.insert(element['/'].subarray(-4), { after: at })
-              yield [array, at, member]
+              nested[at] = member
             } else {
               const element = yield* iterate(member)
               at = Position.insert(element['/'].subarray(-4), { after: at })
-              yield [array, at, element]
+              nested[at] = element
             }
           }
-          yield [entity, key, array]
+          const entity = refer(Object.values(nested))
+          for (const [at, element] of Object.entries(nested)) {
+            yield [entity, at, element]
+          }
+          output[key] = entity
         } else {
-          const object = yield* iterate(value)
-          yield [entity, key, object]
+          output[key] = yield* iterate(value)
         }
         break
       }
@@ -50,6 +55,11 @@ export const iterate = function* (source) {
       default:
         throw new TypeError(`Unsupported value type: ${value}`)
     }
+  }
+
+  const entity = refer(output)
+  for (const [key, value] of Object.entries(output)) {
+    yield [entity, key, value]
   }
 
   return entity
