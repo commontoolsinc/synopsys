@@ -62,11 +62,17 @@ export function* subscribe({ session, subscriptions }, query) {
 }
 
 /**
- *
  * @param {ReplicaState} self
  * @param {Type.Transaction} changes
  */
 export const transact = ({ session }, changes) => session.transact(changes)
+
+/**
+ * @template {Type.Selector} [Select=Type.Selector]
+ * @param {ReplicaState} self
+ * @param {Type.Query<Select>} query
+ */
+export const query = ({ session }, query) => session.query(query)
 
 class Replica {
   /**
@@ -91,5 +97,12 @@ class Replica {
    */
   subscribe(query) {
     return subscribe(this, query)
+  }
+  /**
+   * @template {Type.Selector} [Select=Type.Selector]
+   * @param {Type.Query<Select>} source
+   */
+  query(source) {
+    return query(this, source)
   }
 }

@@ -13,6 +13,7 @@ export type {
   Variable,
   Attribute,
   Instantiation as Import,
+  Where,
 } from 'datalogia'
 export type { BlockEncoder, BlockDecoder } from 'multiformats'
 export type { Task } from 'datalogia/task'
@@ -60,6 +61,9 @@ export interface Reference<T extends null | {} = null | {}> extends Phantom<T> {
  */
 
 export interface Session {
+  query<Select extends Selector>(
+    query: Query<Select>
+  ): Task<Selection<Select>[], Error>
   subscribe<Select extends Selector>(
     query: Query<Select>
   ): Task<Subscription<Select>, Error>

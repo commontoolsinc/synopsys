@@ -46,6 +46,16 @@ export function* subscribe(session, query) {
 }
 
 /**
+ * Issues single query.
+ *
+ * @template {DB.Selector} [Select=DB.API.Selector]
+ *
+ * @param {Local} session
+ * @param {DB.Query<Select>} query
+ */
+export const query = (session, query) => DB.query(session.store, query)
+
+/**
  * This is a readable stream that produces recomputed query selections when
  * underlying session is transacted. It queues up commit signals while it is
  * being consumed and stops queuing it is not. This gives us a pull based
@@ -164,6 +174,7 @@ export function* transact(session, changes) {
 
 /**
  * @implements {LocalSession}
+ * @implements {Type.Session}
  */
 class Local {
   /**
@@ -181,6 +192,14 @@ class Local {
    */
   subscribe(query) {
     return subscribe(this, query)
+  }
+
+  /**
+   * @template {DB.Selector} [Select=DB.Selector]
+   * @param {DB.Query<Select>} source
+   */
+  query(source) {
+    return query(this, source)
   }
 
   /**

@@ -48,7 +48,6 @@ export function* subscribe(session, query) {
       'content-type': Query.contentType,
       accept: Subscription.contentType,
     },
-    redirect: 'manual',
     body: bytes,
   })
   const response = yield* Task.wait(session.fetch(request))
@@ -59,6 +58,31 @@ export function* subscribe(session, query) {
     (Selection.fromEventSource(body))
 
   return broadcast(source)
+}
+
+/**
+ * @template {DB.Selector} [Select=DB.API.Selector]
+ * @param {Remote} session
+ * @param {DB.Query<Select>} query
+ */
+export function* query(session, query) {
+  const bytes = yield* Query.toBytes(query)
+  const id = refer(bytes)
+  const request = new Request(new URL(id.toString(), session.url).href, {
+    method: 'PUT',
+    headers: {
+      'content-type': Query.contentType,
+      accept: Query.contentType,
+    },
+    body: bytes,
+  })
+
+  const response = yield* Task.wait(session.fetch(request))
+  const body = yield* Task.wait(response.arrayBuffer())
+  const selection = /** @type {Type.Selection<Select>[]} */ (
+    yield* DAG.decode(JSON, new Uint8Array(body))
+  )
+  return selection
 }
 
 /**
@@ -86,6 +110,9 @@ export function* transact(session, changes) {
   }
 }
 
+/**
+ * @implements {Type.Session}
+ */
 class Remote {
   /**
    * @param {object} source
@@ -102,6 +129,9 @@ class Remote {
    * @param {Request} request
    */
   async fetch(request) {
+    const accept = request.headers.get('accept') ?? ''
+    /** @type {{accept?:string}} */
+    const headers = accept === '' ? {} : { accept }
     const response = await this.source.fetch(request)
     // follow redirects
     switch (response.status) {
@@ -111,11 +141,7 @@ class Remote {
         return await this.source.fetch(
           new Request(
             /** @type {string} */ (response.headers.get('Location')),
-            {
-              headers: {
-                accept: request.headers.get('accept') ?? 'none',
-              },
-            }
+            { headers }
           )
         )
       default: {
@@ -124,6 +150,13 @@ class Remote {
     }
   }
 
+  /**
+   * @template {DB.Selector} [Select=DB.Selector]
+   * @param {Type.Query<Select>} source
+   */
+  query(source) {
+    return query(this, source)
+  }
   /**
    * @template {DB.Selector} [Select=DB.Selector]
    * @param {Type.Query<Select>} query
