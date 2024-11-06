@@ -64,7 +64,7 @@ export const testSync = {
     writer.close()
 
     assert.deepEqual(await first, [{ ok: 1 }, { ok: 2 }])
-    assert.deepEqual(await second, [{ ok: 2 }])
+    assert.deepEqual(await second, [{ ok: 1 }, { ok: 2 }])
   },
 
   'cancel broadcast': async (assert) => {
@@ -78,7 +78,7 @@ export const testSync = {
 
     const second = collect(hub.fork())
 
-    writer.write(2)
+    await writer.write(2)
 
     writer.abort(new Error('Terminate'))
 
@@ -88,6 +88,7 @@ export const testSync = {
       { error: new Error('Terminate') },
     ])
     assert.deepEqual(await second, [
+      { ok: 1 },
       { ok: 2 },
       { error: new Error('Terminate') },
     ])

@@ -332,11 +332,19 @@ data:[]\n\n`
         const body = /** @type {ReadableStream<Uint8Array>} */ (concurrent.body)
         const reader = body.getReader()
 
-        const chunk = yield* Task.wait(reader.read())
-        const content = new TextDecoder().decode(chunk?.value)
+        const firstChunk = yield* Task.wait(reader.read())
 
         assert.equal(
-          content,
+          new TextDecoder().decode(firstChunk?.value),
+          `id:ba4jca7pcf7obj4jijrrgmgzo642qydb7cstlwpv7vf7oudqyrpwhowxx
+event:change
+data:[]\n\n`
+        )
+
+        const secondChunk = yield* Task.wait(reader.read())
+
+        assert.equal(
+          new TextDecoder().decode(secondChunk?.value),
           `id:ba4jcapk7kku4u32tw7sx63wuup2glg2wqspvo356b62k3bzwcfcntdwt
 event:change
 data:[{"count":1}]\n\n`
