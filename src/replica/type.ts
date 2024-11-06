@@ -6,7 +6,6 @@ export type {
   Query,
   Querier,
   Transactor,
-  Transaction,
   InferBindings as Selection,
   Result,
   Variant,
@@ -21,10 +20,12 @@ export type { Task } from 'datalogia/task'
 import type {
   Selector,
   InferBindings as Selection,
-  Transaction,
   Query,
   Variable,
   API,
+  Instantiation as Import,
+  Fact,
+  Variant,
 } from 'datalogia'
 import type { Invocation, Task } from 'datalogia/task'
 import type { Commit, Database as DataStore } from '../store/okra.js'
@@ -109,3 +110,15 @@ export interface Scope extends Record<PropertyKey, Variable<any>> {
   new (): Scope
   (): Scope
 }
+
+// We extends instruction by adding `Upsert` which overrides the previous
+// assertion.
+export type Instruction = Variant<{
+  Assert: Fact
+  Upsert: Fact
+  Retract: Fact
+  Import: Import
+}>
+
+// We also override the `Transaction` so it uses our extended `Instruction` set.
+export interface Transaction extends Iterable<Instruction> {}

@@ -9,6 +9,7 @@ import * as Entity from '../datum/entity.js'
 import * as Reference from '../datum/reference.js'
 import * as Datum from '../datum.js'
 import * as Fact from '../fact.js'
+import * as Type from '../replica/type.js'
 
 const { Bytes } = Constant
 export { Task, CBOR }
@@ -351,16 +352,17 @@ export const transact = (db, changes) =>
 /**
  * Iterates derived [key value] pairs from given transaction.
  *
- * @param {API.Transaction} transaction
+ * @param {Type.Transaction} transaction
  * @param {Reference.Reference<Change>} cause
  * @returns {Iterable<[key:Uint8Array, value?:Uint8Array]>}
  */
 function* entries(transaction, cause) {
   for (const change of transaction) {
-    if (change.Assert) {
-      const [entity, attribute, value] = change.Assert
+    if (change.Assert || change.Upsert) {
+      const fact = change.Assert ?? change.Upsert
+      const [entity, attribute, value] = fact
       const datum = Datum.toBytes([entity, attribute, value, cause])
-      for (const key of keys(change.Assert)) {
+      for (const key of keys(fact)) {
         yield [key, datum]
       }
     }

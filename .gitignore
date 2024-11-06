@@ -6,3 +6,5 @@ coverage
 test/commp/vector.csv.js
 profile
 service-store
+.lsp
+.clj-kondo
