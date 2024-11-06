@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.3.0](https://github.com/commontoolsinc/synopsys/compare/v2.2.0...v2.3.0) (2024-11-06)
+
+
+### Features
+
+* implement upsert ([ba6a927](https://github.com/commontoolsinc/synopsys/commit/ba6a9274469712a2517a085829bd04c9207fe176))
+
+
+### Bug Fixes
+
+* broadcast last value to new connection ([69726bb](https://github.com/commontoolsinc/synopsys/commit/69726bbcce7c21ef7612271ae7e2da1d5c181f4a))
+* tests ([93ce645](https://github.com/commontoolsinc/synopsys/commit/93ce6459f1c492b63906bbad7915ef21e1a34307))
+
 ## [2.2.0](https://github.com/commontoolsinc/synopsys/compare/v2.1.0...v2.2.0) (2024-10-31)
 
 
