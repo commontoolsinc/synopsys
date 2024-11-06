@@ -9,6 +9,7 @@ import * as Entity from '../datum/entity.js'
 import * as Reference from '../datum/reference.js'
 import * as Datum from '../datum.js'
 import * as Fact from '../fact.js'
+import * as Type from '../replica/type.js'
 
 const { Bytes } = Constant
 export { Task, CBOR }
@@ -115,26 +116,11 @@ export const close = (db) => Task.wait(tree(db).close())
  */
 export const scan = (db, { entity, attribute, value } = {}) =>
   Task.spawn(function* () {
-    const promise = tree(db).read((reader) => {
-      // Derives a search key path from the given selector. That will choose an
-      // appropriate index.
-      const path = deriveSearchPath({ entity, attribute, value })
-      // Converts path into a key prefix to search by.
-      const prefix = toSearchKey(path)
-      const entries = reader.entries(toLowerBound(prefix), toUpperBound(prefix))
+    const promise = tree(db).read((reader) =>
+      iterate(reader, { entity, attribute, value })
+    )
 
-      // When we know entity and value but not the attribute we have an atypical
-      // access pattern for which we do not have a dedicated index. In this case
-      // we use `EAVT` index to retrieve all datums for the entity and then filter
-      // out the ones that do not match the value.
-      return isCoarseSearch({ entity, attribute, value })
-        ? collectMatchingDatums(entries, path)
-        : collectDatums(entries)
-    })
-
-    const result = yield* Task.wait(promise)
-
-    return result
+    return yield* Task.wait(promise)
   })
 
 /**
@@ -305,11 +291,11 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  * @typedef {object} Change
  * @property {Uint8Array} origin
  * @property {number} time
- * @property {API.Transaction} transaction
+ * @property {Type.Transaction} transaction
  *
  *
  * @param {Database} db
- * @param {API.Transaction} changes
+ * @param {Type.Transaction} changes
  * @returns {API.Task<Commit, Error>}
  */
 export const transact = (db, changes) =>
@@ -327,16 +313,24 @@ export const transact = (db, changes) =>
       }
       const cause = Reference.of(commit)
 
-      const [...delta] = entries(
-        [{ Assert: [cause, 'db/source', CBOR.encode(commit)] }, ...changes],
-        cause
-      )
+      assert(writer, [cause, 'db/source', CBOR.encode(commit)], cause)
+      for (const change of changes) {
+        if (change.Retract) {
+          retract(writer, change.Retract, cause)
+        }
+        if (change.Upsert) {
+          upsert(writer, change.Upsert, cause)
+        }
+        if (change.Assert) {
+          assert(writer, change.Assert, cause)
+        }
 
-      for (const [key, value] of delta) {
-        if (value == null) {
-          writer.delete(key)
-        } else {
-          writer.set(key, value)
+        if (change.Import) {
+          for (const [entity, attribute, value] of Fact.iterate(
+            change.Import
+          )) {
+            assert(writer, [entity, attribute, value], cause)
+          }
         }
       }
 
@@ -349,36 +343,69 @@ export const transact = (db, changes) =>
   )
 
 /**
- * Iterates derived [key value] pairs from given transaction.
+ * Writes a fact into a database.
  *
- * @param {API.Transaction} transaction
+ * @param {Okra.ReadWriteTransaction} writer
+ * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
- * @returns {Iterable<[key:Uint8Array, value?:Uint8Array]>}
  */
-function* entries(transaction, cause) {
-  for (const change of transaction) {
-    if (change.Assert) {
-      const [entity, attribute, value] = change.Assert
-      const datum = Datum.toBytes([entity, attribute, value, cause])
-      for (const key of keys(change.Assert)) {
-        yield [key, datum]
-      }
-    }
-    if (change.Retract) {
-      for (const key of keys(change.Retract)) {
-        yield [key, undefined]
-      }
-    }
-    if (change.Import) {
-      for (const [entity, attribute, value] of Fact.iterate(change.Import)) {
-        const datum = Datum.toBytes([entity, attribute, value, cause])
-        for (const key of keys([entity, attribute, value])) {
-          yield [key, datum]
-        }
-      }
-    }
+export const assert = (writer, fact, cause) => {
+  const [entity, attribute, value] = fact
+  const datum = Datum.toBytes([entity, attribute, value, cause])
+  for (const key of keys(fact)) {
+    writer.set(key, datum)
   }
 }
+
+/**
+ * @param {Okra.ReadWriteTransaction} writer
+ * @param {API.Fact} fact
+ * @param {Reference.Reference<Change>} cause
+ */
+export const retract = (writer, fact, cause) => {
+  for (const key of keys(fact)) {
+    writer.delete(key)
+  }
+}
+
+/**
+ * @param {Okra.ReadWriteTransaction} writer
+ * @param {API.Fact} fact
+ * @param {Reference.Reference<Change>} cause
+ */
+export const upsert = (writer, fact, cause) => {
+  const [entity, attribute, value] = fact
+  const datums = iterate(writer, { entity, attribute })
+  for (const [entity, attribute, value] of datums) {
+    retract(writer, [entity, attribute, value], cause)
+  }
+  assert(writer, fact, cause)
+}
+
+/**
+ * @param {Okra.ReadOnlyTransaction} reader
+ * @param {API.FactsSelector} [selector]
+ */
+export const iterate = (reader, { entity, attribute, value } = {}) => {
+  // Derives a search key path from the given selector. That will choose an
+  // appropriate index.
+  const path = deriveSearchPath({ entity, attribute, value })
+  // Converts path into a key prefix to search by.
+  const prefix = toSearchKey(path)
+  const entries = reader.entries(toLowerBound(prefix), toUpperBound(prefix))
+
+  // When we know entity and value but not the attribute we have an atypical
+  // access pattern for which we do not have a dedicated index. In this case
+  // we use `EAVT` index to retrieve all datums for the entity and then filter
+  // out the ones that do not match the value.
+  return isCoarseSearch({ entity, attribute, value })
+    ? collectMatchingDatums(entries, path)
+    : collectDatums(entries)
+}
+
+const DELETE = 0
+const SET = 1
+const REPLACE = 2
 
 /**
  * @param {API.Fact} fact
@@ -400,6 +427,6 @@ function* keys([entity, attribute, value]) {
  * @property {Change} cause
  */
 
-const EAVT = UTF8.toUTF8('EAVT')
-const AEVT = UTF8.toUTF8('AEVT')
-const VAET = UTF8.toUTF8('VAET')
+const EAVT = new Uint8Array([0])
+const AEVT = new Uint8Array([1])
+const VAET = new Uint8Array([2])
