@@ -1,6 +1,9 @@
 import * as Type from '../replica/type.js'
 import { refer, is as isReference } from '../datum/reference.js'
+// @ts-expect-error - Got no typedefs
+import { decodeInt32, encodeInt32 } from 'leb'
 import { Constant } from 'datalogia'
+import * as UTF8 from '../utf8.js'
 
 const { Bytes } = Constant
 
@@ -197,3 +200,109 @@ export const store = () => new ReferenceStore()
  * @param {ReferenceStore<T>} store
  */
 export const builder = (store) => new Builder(store)
+
+/**
+ * @template {Type.Constant} T
+ */
+class Encoder {
+  /**
+   * @param {ArrayBuffer} buffer
+   */
+  constructor(buffer) {
+    this.bytes = new Uint8Array(buffer)
+    this.offset = 0
+  }
+  /**
+   * @param {T} head
+   */
+  assert(head) {
+    switch (typeof head) {
+      case 'string': {
+        return this.write(UTF8.toUTF8(head))
+      }
+      case 'number':
+      case 'bigint': {
+        return this.write(LEB128.encode(head))
+      }
+      case 'boolean': {
+        return this.write(new Uint8Array([head ? 1 : 0]))
+      }
+      default:
+        if (head === null) {
+          return this.write(new Uint8Array([0]))
+        } else if (head instanceof Uint8Array) {
+          return this.write(head)
+        } else {
+          return this.write(Reference.digest(head))
+        }
+    }
+  }
+  /**
+   *
+   * @param {Uint8Array} bytes
+   */
+  write(bytes) {}
+}
+
+/**
+ *
+ * @param {Uint8Array} bytes
+ * @returns
+ */
+const fromBytes = (bytes) => {
+  let offset = 0
+  const [count, countSize] = readInt32(bytes, offset)
+  offset += countSize
+
+  const cause = []
+  while (cause.length < count) {
+    const [casual, casualSize] = readCausal(bytes, offset)
+    cause.push(casual)
+    offset += casualSize
+  }
+}
+
+/**
+ * @param {Uint8Array} bytes
+ * @param {number} offset
+ * @returns {[Causal<unknown>, number]}
+ */
+const readCausal = (bytes, offset) => {
+  let start = offset
+  const [size, sizeLength] = readInt32(bytes, offset)
+  offset += sizeLength
+  const head = bytes.subarray(offset, offset + size)
+  offset += size
+  const [count, countLength] = readInt32(bytes, offset)
+  offset += countLength
+  const cause = []
+  while (cause.length < count) {
+    const [member, memberLength] = readCause(bytes, offset)
+    offset += memberLength
+    cause.push(member)
+  }
+
+  return [{ head, cause }, offset - start]
+}
+
+/**
+ * @param {Uint8Array} bytes
+ * @param {number} offset
+ * @returns {[Uint8Array, number]}
+ */
+const readCause = (bytes, offset) => {
+  const [size, sizeLength] = readInt32(bytes, offset)
+  const slice = bytes.subarray(offset + sizeLength, size)
+  return [slice, sizeLength + slice.length]
+}
+
+/**
+ * @param {Uint8Array} bytes
+ * @param {number} offset
+ * @returns {[int:number, offset:number]}
+ */
+const readInt32 = (bytes, offset) => {
+  // @ts-expect-error - LEB module does not have typedefs
+  const { value, nextIndex } = LEB.decodeInt32(bytes, offset)
+  return [value, nextIndex - offset]
+}
