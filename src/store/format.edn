@@ -1,0 +1,23 @@
+(type FactState
+      [:attribute-length Varint
+       :attribute Bytes
+       :values CausalValueSet])
+
+(type OrderedValue
+      [:retracted Byte
+       :size Varint
+       :value Bytes])
+
+;; Retraction 
+(type (Retraction Value)
+      [:value (Reference Value)
+       :cause (Reference Fact)])
+
+;; Reference is represented as bytes 
+(type (Reference Value)
+      (Bytes :of Value))
+
+(type Fact
+      [:entity Bytes
+       :attribute Bytes
+       :value Bytes])
