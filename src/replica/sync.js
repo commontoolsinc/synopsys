@@ -117,6 +117,8 @@ export class BroadcastStream {
   #ports
   #source
   #task
+  /** @type {T|undefined} */
+  #last
   /**
    * @param {ReadableStream<T>} source
    * @param {Set<ReadableStreamDefaultController<T>>} [ports]
@@ -137,6 +139,7 @@ export class BroadcastStream {
    * @param {T} chunk
    */
   write(chunk) {
+    this.#last = chunk
     for (const port of this.#ports) {
       port.enqueue(chunk)
     }
@@ -168,6 +171,9 @@ export class BroadcastStream {
    */
   connect(port) {
     this.#ports.add(port)
+    if (this.#last !== undefined) {
+      port.enqueue(this.#last)
+    }
   }
   /**
    * @param {ReadableStreamDefaultController<T>} port
