@@ -1,6 +1,5 @@
 import * as Okra from '@canvas-js/okra'
 export * from '@canvas-js/okra'
-import * as UTF8 from '../utf8.js'
 import { Constant, API, Task } from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 import { base58btc } from 'multiformats/bases/base58'
@@ -9,7 +8,7 @@ import * as Entity from '../datum/entity.js'
 import * as Reference from '../datum/reference.js'
 import * as Datum from '../datum.js'
 import * as Fact from '../fact.js'
-import * as Type from '../replica/type.js'
+import * as Type from './type.js'
 
 const { Bytes } = Constant
 export { Task, CBOR }
@@ -74,20 +73,19 @@ class Revision {
  * Resolves underlying Okra.Tree instance.
  *
  * @param {Database} database
- * @returns {Okra.Tree}
+ * @returns {Type.Store}
  */
 const tree = (database) => instances.get(database)
 
 /**
  *
- * @param {Okra.Tree} tree
+ * @param {Type.Store} tree
  */
-export const open = (tree) =>
-  Task.spawn(function* () {
-    const instance = new Database()
-    instances.set(instance, tree)
-    return instance
-  })
+export function* open(tree) {
+  const instance = new Database()
+  instances.set(instance, tree)
+  return instance
+}
 
 /**
  * Returns current revision of the database.
@@ -95,7 +93,10 @@ export const open = (tree) =>
  * @param {Database} db
  */
 export const status = (db) =>
-  Task.wait(tree(db).read((reader) => new Revision(reader.getRoot())))
+  tree(db).read(function* (reader) {
+    const root = yield* reader.getRoot()
+    return new Revision(root)
+  })
 
 /**
  * Closes the database instance. This is required to release filesystem lock
@@ -103,7 +104,7 @@ export const status = (db) =>
  *
  * @param {Database} db
  */
-export const close = (db) => Task.wait(tree(db).close())
+export const close = (db) => tree(db).close()
 
 /**
  * Scans the database for all the datums that match a given selector, which
@@ -115,21 +116,15 @@ export const close = (db) => Task.wait(tree(db).close())
  * @returns {API.Task<API.Datum[], Error>}
  */
 export const scan = (db, { entity, attribute, value } = {}) =>
-  Task.spawn(function* () {
-    const promise = tree(db).read((reader) =>
-      iterate(reader, { entity, attribute, value })
-    )
-
-    return yield* Task.wait(promise)
-  })
+  tree(db).read((reader) => iterate(reader, { entity, attribute, value }))
 
 /**
- * @param {IterableIterator<Okra.Entry>} entries
- * @returns {API.Datum[]}
+ * @param {Type.EntryRange} entries
  */
-const collectDatums = (entries) => {
+function* collectDatums(entries) {
   const results = []
-  for (const [, value] of entries) {
+  for (const entry of entries) {
+    const [, value] = yield* Task.wait(entry)
     const datum = Datum.fromBytes(value)
     results.push(datum)
   }
@@ -138,18 +133,15 @@ const collectDatums = (entries) => {
 }
 
 /**
- * @param {IterableIterator<Okra.Entry>} entries
+ * @param {Type.EntryRange} entries
  * @param {SearchPath} path
- * @returns {API.Datum[]}
  */
-const collectMatchingDatums = (
-  entries,
-  [_index, _entity, _attribute, value]
-) => {
+function* collectMatchingDatums(entries, [_index, _entity, _attribute, value]) {
   const results = []
   const suffix = /** @type {Uint8Array} */ (value)
   const offset = suffix.length + 1
-  for (const [key, value] of entries) {
+  for (const entry of entries) {
+    const [key, value] = yield* Task.wait(entry)
     if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
       const datum = Datum.fromBytes(value)
       results.push(datum)
@@ -299,91 +291,87 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  * @returns {API.Task<Commit, Error>}
  */
 export const transact = (db, changes) =>
-  Task.wait(
-    tree(db).write((writer) => {
-      const root = writer.getRoot()
-      const hash = root.hash
-      const time = Date.now()
+  tree(db).write(function* (writer) {
+    const root = yield* writer.getRoot()
+    const hash = root.hash
+    const time = Date.now()
 
-      /** @type {Change} */
-      const commit = {
-        origin: hash,
-        time,
-        transaction: changes,
+    /** @type {Change} */
+    const commit = {
+      origin: hash,
+      time,
+      transaction: changes,
+    }
+    const cause = Reference.of(commit)
+
+    yield* assert(writer, [cause, 'db/source', CBOR.encode(commit)], cause)
+    for (const change of changes) {
+      if (change.Retract) {
+        yield* retract(writer, change.Retract, cause)
       }
-      const cause = Reference.of(commit)
-
-      assert(writer, [cause, 'db/source', CBOR.encode(commit)], cause)
-      for (const change of changes) {
-        if (change.Retract) {
-          retract(writer, change.Retract, cause)
-        }
-        if (change.Upsert) {
-          upsert(writer, change.Upsert, cause)
-        }
-        if (change.Assert) {
-          assert(writer, change.Assert, cause)
-        }
-
-        if (change.Import) {
-          for (const [entity, attribute, value] of Fact.iterate(
-            change.Import
-          )) {
-            assert(writer, [entity, attribute, value], cause)
-          }
-        }
+      if (change.Upsert) {
+        yield* upsert(writer, change.Upsert, cause)
+      }
+      if (change.Assert) {
+        yield* assert(writer, change.Assert, cause)
       }
 
-      return {
-        before: new Revision(root),
-        after: new Revision(writer.getRoot()),
-        cause: commit,
+      if (change.Import) {
+        for (const [entity, attribute, value] of Fact.iterate(change.Import)) {
+          yield* assert(writer, [entity, attribute, value], cause)
+        }
       }
-    })
-  )
+    }
+
+    return {
+      before: new Revision(root),
+      after: new Revision(yield* writer.getRoot()),
+      cause: commit,
+    }
+  })
 
 /**
  * Writes a fact into a database.
  *
- * @param {Okra.ReadWriteTransaction} writer
+ * @param {Type.Writer} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
-export const assert = (writer, fact, cause) => {
+export function* assert(writer, fact, cause) {
   const [entity, attribute, value] = fact
   const datum = Datum.toBytes([entity, attribute, value, cause])
   for (const key of keys(fact)) {
-    writer.set(key, datum)
+    yield* writer.set(key, datum)
   }
 }
 
 /**
- * @param {Okra.ReadWriteTransaction} writer
+ * @param {Type.Writer} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
-export const retract = (writer, fact, cause) => {
+export function* retract(writer, fact, cause) {
   for (const key of keys(fact)) {
-    writer.delete(key)
+    yield* writer.delete(key)
   }
 }
 
 /**
- * @param {Okra.ReadWriteTransaction} writer
+ * @param {Type.Writer} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
-export const upsert = (writer, fact, cause) => {
+export function* upsert(writer, fact, cause) {
   const [entity, attribute, value] = fact
-  const datums = iterate(writer, { entity, attribute })
+  const datums = yield* iterate(writer, { entity, attribute })
   for (const [entity, attribute, value] of datums) {
-    retract(writer, [entity, attribute, value], cause)
+    yield* retract(writer, [entity, attribute, value], cause)
   }
-  assert(writer, fact, cause)
+  yield* assert(writer, fact, cause)
 }
 
 /**
- * @param {Okra.ReadOnlyTransaction} reader
+ * @param {Type.Reader} reader
  * @param {API.FactsSelector} [selector]
  */
 export const iterate = (reader, { entity, attribute, value } = {}) => {

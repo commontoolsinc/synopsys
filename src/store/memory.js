@@ -1,6 +1,7 @@
 import * as Memory from '@canvas-js/okra-memory'
 import * as Store from './okra.js'
 export * from './okra.js'
+import { Sync } from './store.js'
 
 /**
  * Opens a database instance at the given URL. If the URL is not provided or
@@ -11,4 +12,4 @@ export * from './okra.js'
  *
  * @param {Open} [source]
  */
-export const open = (source) => Store.open(new Memory.Tree(source))
+export const open = (source) => Store.open(new Sync(new Memory.Tree(source)))
