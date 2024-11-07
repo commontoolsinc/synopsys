@@ -123,10 +123,15 @@ export const scan = (db, { entity, attribute, value } = {}) =>
  */
 function* collectDatums(entries) {
   const results = []
-  for (const entry of entries) {
-    const [, value] = yield* Task.wait(entry)
-    const datum = Datum.fromBytes(value)
-    results.push(datum)
+  while (true) {
+    const { done, value: entry } = yield* Task.wait(entries.next())
+    if (done) {
+      break
+    } else {
+      const [, value] = yield* Task.wait(entry)
+      const datum = Datum.fromBytes(value)
+      results.push(datum)
+    }
   }
 
   return results
@@ -140,11 +145,16 @@ function* collectMatchingDatums(entries, [_index, _entity, _attribute, value]) {
   const results = []
   const suffix = /** @type {Uint8Array} */ (value)
   const offset = suffix.length + 1
-  for (const entry of entries) {
-    const [key, value] = yield* Task.wait(entry)
-    if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
-      const datum = Datum.fromBytes(value)
-      results.push(datum)
+  while (true) {
+    const { done, value: entry } = yield* Task.wait(entries.next())
+    if (done) {
+      break
+    } else {
+      const [key, value] = yield* Task.wait(entry)
+      if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
+        const datum = Datum.fromBytes(value)
+        results.push(datum)
+      }
     }
   }
   return results

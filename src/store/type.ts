@@ -17,7 +17,9 @@ export type {
   ReadWriteTransaction,
 }
 
-export interface EntryRange extends Iterable<Awaitable<Entry>> {}
+export interface EntryRange {
+  next(): Awaitable<IteratorResult<Entry>>
+}
 
 export interface Reader {
   getRoot(): Task<Node>
@@ -53,12 +55,8 @@ export interface AsyncSource {
   entries(
     lowerBound?: Bound<Uint8Array> | null,
     upperBound?: Bound<Uint8Array> | null,
-    {
-      reverse,
-    }?: {
-      reverse?: boolean | undefined
-    }
-  ): AsyncGenerator<[Uint8Array, Uint8Array]>
+    options?: { reverse?: boolean | undefined }
+  ): AsyncIterableIterator<[Uint8Array, Uint8Array]>
 
   close?: () => Awaitable<void>
 }
