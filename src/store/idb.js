@@ -1,4 +1,4 @@
-import { IDBTree } from '@canvas-js/okra-idb'
+import { IDBTree, IDBStore } from '@canvas-js/okra-idb'
 import * as Okra from '@canvas-js/okra'
 import * as IDB from 'idb'
 import * as Store from './okra.js'
@@ -27,10 +27,48 @@ export const open = function* ({
   version = 1,
   ...options
 } = {}) {
-  const idb = yield* Task.wait(IDB.openDB(name, version))
-  const tree = yield* Task.wait(IDBTree.open(idb, store, options))
+  const idb = yield* Task.wait(
+    IDB.openDB(name, version, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains(store)) {
+          db.createObjectStore(store)
+        }
+      },
+    })
+  )
+  const tree = yield* Task.wait(FixedIDBTree.open(idb, store, options))
+
   const source = new Async(tree)
+
   return yield* Store.open(source)
+}
+
+// @ts-expect-error
+class FixedIDBTree extends IDBTree {
+  /**
+   *
+   * @param {IDB.IDBPDatabase} db
+   * @param {string} storeName
+   * @param {Partial<Okra.Metadata>} options
+   */
+  static async open(db, storeName, options = {}) {
+    const store = new IDBStore(db, storeName)
+    // @ts-expect-error
+    const tree = new this(store, options)
+    await store.write(() => tree.initialize())
+    return tree
+  }
+  /** @type {IDBTree['entries']} */
+  async *entries(lowerBound, upperBound, options) {
+    yield* await this.store.read(async () => {
+      const entries = super.entries(lowerBound, upperBound, options)
+      const members = []
+      for await (const entry of entries) {
+        members.push(entry)
+      }
+      return members.values()
+    })
+  }
 }
 
 /**

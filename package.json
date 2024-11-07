@@ -7,8 +7,8 @@
   "scripts": {
     "build": "tsc --build",
     "prepublishOnly": "tsc --build",
-    "test:web": "playwright-test --runner entail 'test/**/*.spec.js'",
-    "test:node": "c8 entail 'test/**/*.spec.js'",
+    "test:web": "playwright-test --runner entail 'test/**/*.{spec,spec.web}.js'",
+    "test:node": "c8 entail 'test/**/*.{spec,spec.node}.js'",
     "test": "npm run test:node",
     "coverage": "c8 --reporter=html entail 'test/*.spec.js'",
     "check": "tsc --build",
@@ -58,6 +58,11 @@
       "import": "./src/store/file.js",
       "default": "./src/store/file.js"
     },
+    "./store/idb": {
+      "types": "./dist/src/store/idb.d.ts",
+      "import": "./src/store/idb.js",
+      "default": "./src/store/idb.js"
+    },
     "./blob/memory": {
       "types": "./dist/src/blob/memory.d.ts",
       "import": "./src/blob/memory.js",
@@ -88,7 +93,7 @@
     "@web-std/stream": "1.0.3",
     "c8": "8.0.1",
     "entail": "^2.1.2",
-    "playwright-test": "14.0.0",
+    "playwright-test": "^14.1.6",
     "prettier": "3.1.0",
     "typescript": "^5.6.3"
   },
