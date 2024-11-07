@@ -5,6 +5,7 @@ import * as Store from './okra.js'
 import { Task } from 'datalogia'
 import { sync } from '@canvas-js/okra'
 import { Async } from './store.js'
+import * as Type from './type.js'
 
 export * from './okra.js'
 
@@ -13,20 +14,31 @@ export * from './okra.js'
  * has a `memory:` protocol, an ephemeral in-memory database returned. If the
  * URL has a `file:` protocol, a persistent LMDB backed database is returned.
  *
- * @typedef {import('@canvas-js/okra-lmdb').TreeOptions & {
- *    name?: string
- *    version?: number
- *    store?: string
- * }} Open
+ * @typedef {object} OpenDB
+ * @typedef {import('@canvas-js/okra').Metadata} Metadata
+ *
+ * @typedef {object} Address
+ * @property {string} name
+ * @property {number} version
+ * @property {string} store
+ * @property {Partial<Metadata>} [tree]
+ *
+ *
+ * @typedef {Type.Variant<{
+ *   url: URL,
+ *   idb: Address
+ * }>} Open
  *
  * @param {Open} [source]
  */
-export const open = function* ({
-  name = 'synopsys',
-  store = 'okra',
-  version = 1,
-  ...options
-} = {}) {
+export const open = function* (source) {
+  const {
+    name = 'synopsys',
+    store = 'okra',
+    version = 1,
+    tree = {},
+  } = source?.idb ? source.idb : source?.url ? fromURL(source.url) : {}
+
   const idb = yield* Task.wait(
     IDB.openDB(name, version, {
       upgrade(db) {
@@ -36,13 +48,32 @@ export const open = function* ({
       },
     })
   )
-  const tree = yield* Task.wait(FixedIDBTree.open(idb, store, options))
+  const okra = yield* Task.wait(FixedIDBTree.open(idb, store, tree))
 
-  const source = new Async(tree)
-
-  return yield* Store.open(source)
+  return yield* Store.open(new Async(okra))
 }
 
+/**
+ * @param {URL} url
+ * @returns {Address}
+ */
+const fromURL = (url) => {
+  const { pathname, searchParams } = url
+  const [database, store] = pathname.split(':')
+  const [name, revision] = database.split('@')
+  const version = Number(revision) | 0
+  const Q = Number(searchParams.get('Q'))
+  const K = Number(searchParams.get('K'))
+
+  const treeOptions = Q > 0 && K > 0 ? { tree: { Q, K } } : {}
+
+  return {
+    name,
+    store,
+    version: version,
+    ...treeOptions,
+  }
+}
 // @ts-expect-error
 class FixedIDBTree extends IDBTree {
   /**

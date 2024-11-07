@@ -1,5 +1,5 @@
 import * as Memory from 'synopsys/store/memory'
-import * as Store from 'synopsys/store/file'
+import * as Store from '../src/store/lmdb.js'
 import { transact } from 'datalogia'
 import * as OS from 'node:os'
 import { refer, Task } from '../src/lib.js'
