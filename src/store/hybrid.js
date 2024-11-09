@@ -1,6 +1,8 @@
 import { refer } from 'merkle-reference'
 import * as Type from './type.js'
-import { Task } from 'datalogia'
+import { Task, transact, query } from 'datalogia'
+
+export { transact, query }
 
 /**
  * @typedef {object} DataSource
@@ -69,10 +71,10 @@ class HybdridDatabase {
     if (durable.length) {
       const { after } = yield* this.source.durable.transact(durable)
       // Capture upstream state so we can capture it in the merkle root
-      ephemeral.push({ Upsert: [refer({}), `~/durable`, after.id] })
+      ephemeral.push(updateDurableRoot(after.id))
     }
 
-    const commit = yield* this.source.ephemeral.transact(changes)
+    const commit = yield* this.source.ephemeral.transact(ephemeral)
     this.#revision = commit.after
     return commit
   }

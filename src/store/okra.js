@@ -21,6 +21,7 @@ const instances = new WeakMap()
  *
  * @implements {API.Querier}
  * @implements {API.Transactor<Commit>}
+ * @implements {Type.Database}
  */
 export class Database {
   /**
@@ -104,7 +105,10 @@ export const status = (db) =>
  *
  * @param {Database} db
  */
-export const close = (db) => tree(db).close()
+export function* close(db) {
+  yield* tree(db).close()
+  return {}
+}
 
 /**
  * Scans the database for all the datums that match a given selector, which

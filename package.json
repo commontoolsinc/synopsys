@@ -63,6 +63,11 @@
       "import": "./src/store/idb.js",
       "default": "./src/store/idb.js"
     },
+    "./store/hybrid": {
+      "types": "./dist/src/store/hybrid.d.ts",
+      "import": "./src/store/hybrid.js",
+      "default": "./src/store/hybrid.js"
+    },
     "./blob/memory": {
       "types": "./dist/src/blob/memory.d.ts",
       "import": "./src/blob/memory.js",
