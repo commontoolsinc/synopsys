@@ -1,6 +1,8 @@
 import { transact, query, Var, match, not } from 'datalogia'
 import { refer, Task, $ } from 'synopsys'
 import * as IDB from 'synopsys/store/idb'
+import HybridSuite from './hybrid.js'
+import * as Memory from 'synopsys/store/memory'
 
 /**
  * @type {import('entail').Suite}
@@ -51,6 +53,14 @@ export const testQuery = {
         },
       ])
     }),
+
+  hybrid: HybridSuite({
+    *open() {
+      const durable = yield* IDB.open()
+      const ephemeral = yield* Memory.open()
+      return { durable, ephemeral }
+    },
+  }),
 }
 
 function* open() {
