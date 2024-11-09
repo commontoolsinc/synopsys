@@ -1,5 +1,5 @@
 import { Task } from 'datalogia/task'
-import {
+import type {
   Node,
   Bound,
   Entry,
@@ -7,6 +7,9 @@ import {
   ReadOnlyTransaction,
   ReadWriteTransaction,
 } from '@canvas-js/okra'
+
+import type { FactsSelector, Datum } from 'datalogia'
+import { Transaction, Commit, Revision } from '../replica/type.js'
 export * from '../replica/type.js'
 
 export type {
@@ -15,6 +18,10 @@ export type {
   Awaitable,
   ReadOnlyTransaction,
   ReadWriteTransaction,
+  FactsSelector,
+  Datum,
+  Transaction,
+  Commit,
 }
 
 export interface EntryRange {
@@ -59,4 +66,12 @@ export interface AsyncSource {
   ): AsyncIterableIterator<[Uint8Array, Uint8Array]>
 
   close?: () => Awaitable<void>
+}
+
+export interface Database {
+  scan(selector: FactsSelector): Task<Datum[], Error>
+  transact(charges: Transaction): Task<Commit, Error>
+  status(): Task<Revision, Error>
+
+  close(): Task<{}, Error>
 }
