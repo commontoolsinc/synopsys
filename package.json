@@ -7,8 +7,8 @@
   "scripts": {
     "build": "tsc --build",
     "prepublishOnly": "tsc --build",
-    "test:web": "playwright-test --runner entail 'test/**/*.spec.js'",
-    "test:node": "c8 entail 'test/**/*.spec.js'",
+    "test:web": "playwright-test --runner entail 'test/**/*.{spec,spec.web}.js'",
+    "test:node": "c8 entail 'test/**/*.{spec,spec.node}.js'",
     "test": "npm run test:node",
     "coverage": "c8 --reporter=html entail 'test/*.spec.js'",
     "check": "tsc --build",
@@ -58,6 +58,16 @@
       "import": "./src/store/file.js",
       "default": "./src/store/file.js"
     },
+    "./store/idb": {
+      "types": "./dist/src/store/idb.d.ts",
+      "import": "./src/store/idb.js",
+      "default": "./src/store/idb.js"
+    },
+    "./store/hybrid": {
+      "types": "./dist/src/store/hybrid.d.ts",
+      "import": "./src/store/hybrid.js",
+      "default": "./src/store/hybrid.js"
+    },
     "./blob/memory": {
       "types": "./dist/src/blob/memory.d.ts",
       "import": "./src/blob/memory.js",
@@ -73,6 +83,8 @@
     "@canvas-js/okra": "0.4.5",
     "@canvas-js/okra-lmdb": "0.2.0",
     "@canvas-js/okra-memory": "0.4.5",
+    "@canvas-js/okra-idb": "^0.3.0",
+    "idb": "^8.0.0",
     "@ipld/dag-cbor": "^9.2.1",
     "@ipld/dag-json": "10.2.2",
     "@noble/hashes": "1.3.3",
@@ -86,7 +98,7 @@
     "@web-std/stream": "1.0.3",
     "c8": "8.0.1",
     "entail": "^2.1.2",
-    "playwright-test": "14.0.0",
+    "playwright-test": "^14.1.6",
     "prettier": "3.1.0",
     "typescript": "^5.6.3"
   },

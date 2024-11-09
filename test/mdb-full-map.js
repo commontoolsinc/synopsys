@@ -1,5 +1,5 @@
 import { Replica, Task, refer } from 'synopsys'
-import * as Store from 'synopsys/store/file'
+import * as Store from '../src/store/lmdb.js'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
 

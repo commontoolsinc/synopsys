@@ -17,7 +17,7 @@ export type {
 } from 'datalogia'
 export type { BlockEncoder, BlockDecoder } from 'multiformats'
 export type { Task } from 'datalogia/task'
-
+export * from '../store/type.js'
 import type {
   Selector,
   InferBindings as Selection,
