@@ -2,8 +2,6 @@ import { transact, query } from 'datalogia'
 import { refer, Task, $, Type } from 'synopsys'
 import * as Hybrid from 'synopsys/store/hybrid'
 
-import * as IDB from 'synopsys/store/idb'
-
 /**
  * @param {object} options
  * @param {() => Task.Task<{durable: Type.Database, ephemeral: Type.Database}, Error>} options.open
