@@ -18,6 +18,10 @@ export type {
 export type { BlockEncoder, BlockDecoder } from 'multiformats'
 export type { Task } from 'datalogia/task'
 export * from '../store/type.js'
+export type {
+  Reader as TreeReader,
+  Writer as TreeWriter,
+} from '../store/type.js'
 import type {
   Selector,
   InferBindings as Selection,

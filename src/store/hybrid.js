@@ -1,7 +1,7 @@
 import { refer } from 'merkle-reference'
 import * as Type from './type.js'
 import { Task, transact, query } from 'datalogia'
-
+import { differentiate } from '../differential.js'
 export { transact, query }
 
 /**
@@ -43,6 +43,9 @@ class HybdridDatabase {
    */
   constructor(source) {
     this.source = source
+  }
+  get tree() {
+    return this.source.durable.tree
   }
   /**
    * @param {Type.FactsSelector} selector
@@ -96,5 +99,28 @@ class HybdridDatabase {
     yield* durable
 
     return {}
+  }
+
+  /**
+   * Pulls changes from remote database.
+   *
+   * @param {Type.SynchronizationSource} source
+   */
+  merge(source) {
+    return this.source.durable.tree.write(function* (writer) {
+      const delta = yield* differentiate(
+        writer,
+        source,
+        // Just picks the remote value as the winner
+        function* (key, source, target) {
+          return source
+        }
+      )
+
+      const local = yield* writer.integrate(delta.local)
+      const remote = yield* source.integrate(delta.remote)
+
+      return { local, remote }
+    })
   }
 }

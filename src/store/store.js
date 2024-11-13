@@ -48,6 +48,21 @@ export class SyncReader {
   *getRoot() {
     return this.transaction.getRoot()
   }
+
+  /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getNode(level, key) {
+    return this.transaction.getNode(level, key)
+  }
+  /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getChildren(level, key) {
+    return this.transaction.getChildren(level, key)
+  }
   /**
    * @param {Uint8Array} key
    */
@@ -59,8 +74,15 @@ export class SyncReader {
   entries(lowerBound, upperBound, options) {
     return this.transaction.entries(lowerBound, upperBound, options)
   }
+  /** @type {Type.Reader['nodes']}  */
+  nodes(level, lowerBound, upperBound, options) {
+    return this.transaction.nodes(level, lowerBound, upperBound, options)
+  }
 }
 
+/**
+ * @implements {Type.Editor}
+ */
 export class SyncWriter extends SyncReader {
   /**
    * @param {Type.ReadWriteTransaction} transaction
@@ -76,6 +98,22 @@ export class SyncWriter extends SyncReader {
   /** @type {Type.Writer['set']} */
   *set(key, value) {
     return this.transaction.set(key, value)
+  }
+
+  /**
+   *
+   * @param {Type.Change[]} changes
+   */
+  *integrate(changes) {
+    for (const [key, value] of changes) {
+      if (value) {
+        this.transaction.set(key, value)
+      } else {
+        this.transaction.delete(key)
+      }
+    }
+
+    return yield* this.getRoot()
   }
 }
 
@@ -126,14 +164,44 @@ class AsyncReader {
     return root
   }
   /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getNode(level, key) {
+    const node = yield* Task.wait(this.source.getNode(level, key))
+    return node
+  }
+  /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getChildren(level, key) {
+    const children = yield* Task.wait(this.source.getChildren(level, key))
+    return children
+  }
+  /**
    * @param {Uint8Array} key
    */
   *get(key) {
     const value = yield* Task.wait(this.source.get(key))
     return value
   }
-  entries() {
-    return this.source.entries()
+  /**
+   * @param {Type.Bound<Uint8Array>|null} [lowerBound]
+   * @param {Type.Bound<Uint8Array>|null} [upperBound]
+   * @param {{reverse?: boolean}} [options]
+   */
+  entries(lowerBound, upperBound, options) {
+    return this.source.entries(lowerBound, upperBound, options)
+  }
+  /**
+   * @param {number} level
+   * @param {Type.Bound<Type.Key>|null} [lowerBound]
+   * @param {Type.Bound<Type.Key>|null} [upperBound]
+   * @param {{reverse?: boolean}} [options]
+   */
+  nodes(level, lowerBound, upperBound, options) {
+    return this.source.nodes(level, lowerBound, upperBound, options)
   }
 }
 
@@ -153,5 +221,23 @@ class AsyncWriter extends AsyncReader {
    */
   *set(key, value) {
     return yield* Task.wait(this.source.set(key, value))
+  }
+
+  /**
+   *
+   * @param {Type.Change[]} changes
+   */
+  *integrate(changes) {
+    const promises = []
+    for (const [key, value] of changes) {
+      if (value) {
+        promises.push(this.source.set(key, value))
+      } else {
+        promises.push(this.source.delete(key))
+      }
+    }
+    yield* Task.wait(Promise.all(promises))
+
+    return yield* this.getRoot()
   }
 }

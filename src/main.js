@@ -3,6 +3,7 @@ import * as HTTP from './http.js'
 import * as Service from './service.js'
 import * as Store from './store.js'
 import * as Blobs from './blob.js'
+import * as Sync from './sync.js'
 import process from 'node:process'
 
 export const KiB = 1024
@@ -23,11 +24,14 @@ export const main = function* ({
   store = process.env.STORE ?? '../service-store/',
 } = {}) {
   const url = new URL(store, import.meta.url)
+  const data = yield* Store.open({
+    url,
+    mapSize: storeSize,
+  })
+  const sync = yield* Sync.open(data.tree)
   const service = yield* Service.open({
-    data: yield* Store.open({
-      url,
-      mapSize: storeSize,
-    }),
+    sync,
+    data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
     }),
