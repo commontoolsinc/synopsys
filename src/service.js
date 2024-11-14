@@ -20,6 +20,20 @@ const CORS = {
 }
 
 /**
+ * Creates a new URL with the correct protocol based on the request.
+ *
+ * @param {Request} request
+ * @param {string} path
+ */
+const rewrite = (request, path) => {
+  const newUrl = new URL(path, request.url)
+  if (request.headers.get('x-forwarded-proto') === 'https') {
+    newUrl.protocol = 'https:'
+  }
+  return newUrl
+}
+
+/**
  * Connects to the  service by opening the underlying store.
  *
  * @param {object} source
@@ -236,7 +250,7 @@ export function* importQuery(self, request) {
       status: 303,
       headers: {
         ...CORS,
-        Location: new URL(`/${query}`, request.url).toString(),
+        Location: rewrite(request, `/${query}`).toString(),
       },
     })
   } catch (reason) {
@@ -307,7 +321,7 @@ export function* importBlob(self, request) {
         status: 303,
         headers: {
           ...CORS,
-          location: new URL(`/${id}`, request.url).toString(),
+          location: rewrite(request, `/${id}`).toString(),
         },
       }
     )
