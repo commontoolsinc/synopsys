@@ -1,5 +1,4 @@
-import { refer, Task } from 'synopsys'
-import * as Hybrid from 'synopsys/store/hybrid'
+import { refer, Task, Hybrid } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 import * as Service from '../src/service.js'
 import * as Blobs from 'synopsys/blob/memory'
