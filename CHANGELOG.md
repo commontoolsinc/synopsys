@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.0.0](https://github.com/commontoolsinc/synopsys/compare/v2.3.0...v3.0.0) (2024-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* implement sync protocol
+* implement client side query enngine
+
+### Features
+
+* add hybrid store implementation and associated tests ([cf213f3](https://github.com/commontoolsinc/synopsys/commit/cf213f3137a1ed24d336d589b7ad254bb22765df))
+* implement adapter ([62d69d4](https://github.com/commontoolsinc/synopsys/commit/62d69d4bc698e581a47458842aa783d50b9083a4))
+* implement client side query enngine ([c4cc629](https://github.com/commontoolsinc/synopsys/commit/c4cc62997eeb8c823aa1b234204dddc0414da75e))
+* implement sync protocol ([d2a4681](https://github.com/commontoolsinc/synopsys/commit/d2a46815f45eac290298ff3087da667900fd51ce))
+* implement sync protocol ([1305f4f](https://github.com/commontoolsinc/synopsys/commit/1305f4fe0504ffad1cf6ba229088fcbbda6c2ff0))
+
+
+### Bug Fixes
+
+* idb store ([84347d3](https://github.com/commontoolsinc/synopsys/commit/84347d36c6454938a9523b9291425faf407c7693))
+* make iteration logic async agnostic ([aa75665](https://github.com/commontoolsinc/synopsys/commit/aa756659e2fc5a846e5efadb98f7daf10dc66bed))
+
 ## [2.3.0](https://github.com/commontoolsinc/synopsys/compare/v2.2.0...v2.3.0) (2024-11-06)
 
 
