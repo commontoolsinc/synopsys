@@ -13,8 +13,6 @@ import * as Type from './type.js'
 const { Bytes } = Constant
 export { Task, CBOR }
 
-const instances = new WeakMap()
-
 /**
  * Represents an opaque database type with a methods corresponding to the
  * static functions exported by this module.
@@ -24,6 +22,13 @@ const instances = new WeakMap()
  * @implements {Type.Database}
  */
 export class Database {
+  /**
+   *
+   * @param {Type.Store} tree
+   */
+  constructor(tree) {
+    this.store = tree
+  }
   /**
    * @param {API.FactsSelector} [selector]
    */
@@ -71,21 +76,11 @@ class Revision {
 }
 
 /**
- * Resolves underlying Okra.Tree instance.
- *
- * @param {Database} database
- * @returns {Type.Store}
- */
-const tree = (database) => instances.get(database)
-
-/**
  *
  * @param {Type.Store} tree
  */
 export function* open(tree) {
-  const instance = new Database()
-  instances.set(instance, tree)
-  return instance
+  return new Database(tree)
 }
 
 /**
@@ -94,7 +89,7 @@ export function* open(tree) {
  * @param {Database} db
  */
 export const status = (db) =>
-  tree(db).read(function* (reader) {
+  db.store.read(function* (reader) {
     const root = yield* reader.getRoot()
     return new Revision(root)
   })
@@ -106,7 +101,7 @@ export const status = (db) =>
  * @param {Database} db
  */
 export function* close(db) {
-  yield* tree(db).close()
+  yield* db.store.close()
   return {}
 }
 
@@ -120,10 +115,10 @@ export function* close(db) {
  * @returns {API.Task<API.Datum[], Error>}
  */
 export const scan = (db, { entity, attribute, value } = {}) =>
-  tree(db).read((reader) => iterate(reader, { entity, attribute, value }))
+  db.store.read((reader) => iterate(reader, { entity, attribute, value }))
 
 /**
- * @param {Type.EntryRange} entries
+ * @param {Type.AwaitIterable<Type.Entry>} entries
  */
 function* collectDatums(entries) {
   const results = []
@@ -142,7 +137,7 @@ function* collectDatums(entries) {
 }
 
 /**
- * @param {Type.EntryRange} entries
+ * @param {Type.AwaitIterable<Type.Entry>} entries
  * @param {SearchPath} path
  */
 function* collectMatchingDatums(entries, [_index, _entity, _attribute, value]) {
@@ -305,7 +300,7 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  * @returns {API.Task<Commit, Error>}
  */
 export const transact = (db, changes) =>
-  tree(db).write(function* (writer) {
+  db.store.write(function* (writer) {
     const root = yield* writer.getRoot()
     const hash = root.hash
     const time = Date.now()
@@ -371,7 +366,7 @@ export function* retract(writer, fact, cause) {
 }
 
 /**
- * @param {Type.Writer} writer
+ * @param {Type.Editor} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */

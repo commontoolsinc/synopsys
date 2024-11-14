@@ -87,7 +87,7 @@ class FixedIDBTree extends IDBTree {
     // @ts-expect-error
     const tree = new this(store, options)
     await store.write(() => tree.initialize())
-    return tree
+    return /** @type {FixedIDBTree} */ (tree)
   }
   /** @type {IDBTree['entries']} */
   async *entries(lowerBound, upperBound, options) {

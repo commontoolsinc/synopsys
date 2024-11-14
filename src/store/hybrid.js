@@ -1,8 +1,24 @@
 import { refer } from 'merkle-reference'
 import * as Type from './type.js'
 import { Task, transact, query } from 'datalogia'
+import { differentiate } from '../differential.js'
+import * as Remote from '../source/remote.js'
+import * as Local from '../source/local.js'
 
 export { transact, query }
+
+/**
+ * @typedef {Type.Variant<{
+ *   remote: Remote.Connection
+ *   local: Local.Connection
+ * }>} Address
+ */
+
+/**
+ * @param {Address} source
+ */
+export const connect = (source) =>
+  source.local ? Local.open(source.local) : Remote.open(source.remote)
 
 /**
  * @typedef {object} DataSource
@@ -33,6 +49,13 @@ const isEphemeral = ({ Assert, Retract, Upsert }) => {
 const updateDurableRoot = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
 
 /**
+ * @typedef {Type.Variant<{
+ *   Merge: Type.SynchronizationSource
+ *   Transact: Type.Instruction[]
+ * }>} Command
+ */
+
+/**
  * @implements {Type.Database}
  */
 class HybdridDatabase {
@@ -43,6 +66,10 @@ class HybdridDatabase {
    */
   constructor(source) {
     this.source = source
+    this.writable = Task.wait({})
+  }
+  get store() {
+    return this.source.durable.store
   }
   /**
    * @param {Type.FactsSelector} selector
@@ -59,6 +86,7 @@ class HybdridDatabase {
    */
   *transact(changes) {
     const ephemeral = []
+    /** @type {Type.Instruction[]} */
     const durable = []
     for (const change of changes) {
       if (isEphemeral(change)) {
@@ -68,14 +96,35 @@ class HybdridDatabase {
       }
     }
 
-    if (durable.length) {
-      const { after } = yield* this.source.durable.transact(durable)
-      // Capture upstream state so we can capture it in the merkle root
-      ephemeral.push(updateDurableRoot(after.id))
-    }
-
     const commit = yield* this.source.ephemeral.transact(ephemeral)
     this.#revision = commit.after
+
+    // If we have changes to durable store we need to schedule a write
+    // after all prior writes are done. This ensures that the durable
+    // store is not changing concurrently which could lead to problems.
+    if (durable.length) {
+      const invocation = Task.perform(HybdridDatabase.transact(this, durable))
+      this.writable = Task.result(invocation)
+      return yield* invocation
+    } else {
+      return commit
+    }
+  }
+
+  /**
+   * @param {HybdridDatabase} self
+   * @param {Type.Transaction} changes
+   */
+  static *transact(self, changes) {
+    yield* Task.result(self.writable)
+    const { after } = yield* self.source.durable.transact(changes)
+    // Capture upstream state so we can capture it in the merkle root
+
+    const commit = yield* self.source.ephemeral.transact([
+      updateDurableRoot(after.id),
+    ])
+    self.#revision = commit.after
+
     return commit
   }
   *status() {
@@ -96,5 +145,40 @@ class HybdridDatabase {
     yield* durable
 
     return {}
+  }
+
+  /**
+   * Pulls changes from remote database.
+   *
+   * @param {Type.SynchronizationSource} source
+   */
+  *merge(source) {
+    const invocation = Task.perform(HybdridDatabase.merge(this, source))
+    this.writable = Task.result(invocation)
+    return yield* invocation
+  }
+
+  /**
+   *
+   * @param {HybdridDatabase} self
+   * @param {Type.SynchronizationSource} source
+   */
+  static *merge(self, source) {
+    yield* self.writable
+    return yield* self.source.durable.store.write(function* (writer) {
+      const delta = yield* differentiate(
+        writer,
+        source,
+        // Just picks the remote value as the winner
+        function* (key, source, target) {
+          return source
+        }
+      )
+
+      const local = yield* writer.integrate(delta.local)
+      const remote = yield* source.integrate(delta.remote)
+
+      return { local, remote }
+    })
   }
 }

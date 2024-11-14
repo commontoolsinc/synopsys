@@ -11,6 +11,7 @@ import { refer, synopsys } from './replica.js'
 import { toEventSource } from './replica/selection.js'
 import { broadcast } from './replica/sync.js'
 import * as DAG from './replica/dag.js'
+import * as Sync from './sync.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -36,28 +37,31 @@ const rewrite = (request, path) => {
  * Connects to the  service by opening the underlying store.
  *
  * @param {object} source
+ * @param {Sync.Service} [source.sync]
  * @param {Replica.DataStore} source.data
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
  */
-export const open = function* ({ data, blobs }) {
+export const open = function* ({ data, blobs, sync }) {
   const replica = yield* Replica.open({ local: { store: data } })
   const revision = yield* data.status()
 
-  return new Service(replica, data, blobs, revision)
+  return new Service(replica, sync, data, blobs, revision)
 }
 
 export class Service {
   /**
    * @param {Replica.Revision} revision
    * @param {Replica.Replica} replica
+   * @param {Sync.Service|undefined} sync
    * @param {Replica.DataStore} data
    * @param {Replica.BlobStore} blobs
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
    *
    */
-  constructor(replica, data, blobs, revision, subscriptions = new Map()) {
+  constructor(replica, sync, data, blobs, revision, subscriptions = new Map()) {
     this.replica = replica
+    this.sync = sync
     this.data = data
     this.blobs = blobs
     this.revision = revision
@@ -105,6 +109,8 @@ export const fetch = function* (self, request) {
       return yield* patch(self, request)
     case 'GET':
       return yield* get(self, request)
+    case 'POST':
+      return yield* post(self, request)
     default:
       return yield* error(
         { message: 'Method not allowed' },
@@ -175,6 +181,39 @@ export function* put(self, request) {
       return yield* importJSON(self, request)
     default:
       return yield* importBlob(self, request)
+  }
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ */
+export function* post(self, request) {
+  const accept = request.headers.get('accept')
+  if (self.sync == null) {
+    return yield* error(
+      { message: 'Sync protocol is not available' },
+      { status: 400, statusText: 'Bad Request' }
+    )
+  }
+
+  switch (accept) {
+    case Sync.contentType:
+      return new Response(
+        request.body?.pipeThrough(Sync.synchronize(self.sync)),
+        {
+          status: 200,
+          headers: {
+            ...CORS,
+            contentType: Sync.contentType,
+          },
+        }
+      )
+    default:
+      return yield* error(
+        { message: 'Unsupported content type' },
+        { status: 400, statusText: 'Bad Request' }
+      )
   }
 }
 
@@ -305,7 +344,7 @@ export function* importBlob(self, request) {
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
- * @typedef {Self & {data: Replica.DataStore, blobs: Replica.BlobStore}} MutableSelf
+ * @typedef {Self & {sync?: Sync.Service, data: Replica.DataStore, blobs: Replica.BlobStore}} MutableSelf
  */
 
 /**
