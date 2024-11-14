@@ -1,10 +1,8 @@
 import * as Type from './replica/type.js'
-import { transform } from './replica/sync.js'
 import * as DAG from './replica/dag.js'
 import * as JSON from '@ipld/dag-json'
 import { Task } from 'datalogia'
 import { refer } from './datum/reference.js'
-import { error } from 'console'
 
 export const contentType = 'application/okra-sync'
 
