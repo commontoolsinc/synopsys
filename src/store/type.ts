@@ -98,7 +98,7 @@ export interface AsyncSource {
 }
 
 export interface Database {
-  tree: Store
+  store: Store
 
   scan(selector: FactsSelector): Task<Datum[], Error>
   transact(charges: Transaction): Task<Commit, Error>

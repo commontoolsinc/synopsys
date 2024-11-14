@@ -15,7 +15,7 @@ export const testSync = {
   'test sync protocol': (assert) =>
     Task.spawn(function* () {
       const data = yield* Memory.open()
-      const sync = yield* Sync.open(data.tree)
+      const sync = yield* Sync.open(data)
       const service = yield* Service.open({
         data,
         sync,

@@ -28,7 +28,7 @@ export const main = function* ({
     url,
     mapSize: storeSize,
   })
-  const sync = yield* Sync.open(data.tree)
+  const sync = yield* Sync.open(data)
   const service = yield* Service.open({
     sync,
     data,

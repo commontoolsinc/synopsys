@@ -10,10 +10,11 @@ export const contentType = 'application/okra-sync'
 
 class Synchronizer {
   /**
-   * @param {Type.Store} source
+   * @param {object} source
+   * @param {Type.Store} source.store
    */
-  constructor(source) {
-    this.source = source
+  constructor({ store }) {
+    this.store = store
     /** @type {TransformStream[]} */
     this.queue = []
     /** @type {Type.Variant<{idle:{}, busy:{}}>}  */
@@ -34,7 +35,7 @@ class Synchronizer {
       while (this.queue.length > 0) {
         const { readable, writable } = this.queue[0]
         this.queue.shift()
-        yield* this.source.write(function* (writer) {
+        yield* this.store.write(function* (writer) {
           const task = interpret(
             writer,
             readable.getReader(),
@@ -53,7 +54,8 @@ class Synchronizer {
  */
 
 /**
- * @param {Type.Store} source
+ * @param {object} source
+ * @param {Type.Store} source.store
  */
 export function* open(source) {
   return new Synchronizer(source)
@@ -95,11 +97,11 @@ function* toCommand(bytes) {
 
 /**
  *
- * @param {Type.PullSource & Type.PushSource} store
+ * @param {Type.PullSource & Type.PushSource} source
  * @param {ReadableStreamDefaultReader<Uint8Array>} input
  * @param {WritableStreamDefaultWriter<Uint8Array>} output
  */
-export function* interpret(store, input, output) {
+export function* interpret(source, input, output) {
   while (true) {
     const next = yield* Task.wait(input.read())
     if (next.done) {
@@ -107,7 +109,7 @@ export function* interpret(store, input, output) {
     } else {
       const command = yield* toCommand(next.value)
       const cause = refer(command)
-      const result = yield* Task.result(perform(store, command))
+      const result = yield* Task.result(perform(source, command))
       const response = result.ok
         ? { result, cause }
         : {
@@ -126,22 +128,22 @@ export function* interpret(store, input, output) {
 }
 
 /**
- * @param {Type.PullSource & Type.PushSource} store
+ * @param {Type.PullSource & Type.PushSource} source
  * @param {Command} command
  */
 
-function* perform(store, command) {
+function* perform(source, command) {
   if (command.getRoot) {
-    return yield* store.getRoot()
+    return yield* source.getRoot()
   } else if (command.getNode) {
-    return yield* store.getNode(command.getNode.level, command.getNode.key)
+    return yield* source.getNode(command.getNode.level, command.getNode.key)
   } else if (command.getChildren) {
-    return yield* store.getChildren(
+    return yield* source.getChildren(
       command.getChildren.level,
       command.getChildren.key
     )
   } else if (command.integrate) {
-    return yield* store.integrate(command.integrate.changes)
+    return yield* source.integrate(command.integrate.changes)
   } else {
     throw new Error('Unknown command')
   }

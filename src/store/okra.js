@@ -27,7 +27,7 @@ export class Database {
    * @param {Type.Store} tree
    */
   constructor(tree) {
-    this.tree = tree
+    this.store = tree
   }
   /**
    * @param {API.FactsSelector} [selector]
@@ -89,7 +89,7 @@ export function* open(tree) {
  * @param {Database} db
  */
 export const status = (db) =>
-  db.tree.read(function* (reader) {
+  db.store.read(function* (reader) {
     const root = yield* reader.getRoot()
     return new Revision(root)
   })
@@ -101,7 +101,7 @@ export const status = (db) =>
  * @param {Database} db
  */
 export function* close(db) {
-  yield* db.tree.close()
+  yield* db.store.close()
   return {}
 }
 
@@ -115,7 +115,7 @@ export function* close(db) {
  * @returns {API.Task<API.Datum[], Error>}
  */
 export const scan = (db, { entity, attribute, value } = {}) =>
-  db.tree.read((reader) => iterate(reader, { entity, attribute, value }))
+  db.store.read((reader) => iterate(reader, { entity, attribute, value }))
 
 /**
  * @param {Type.AwaitIterable<Type.Entry>} entries
@@ -300,7 +300,7 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  * @returns {API.Task<Commit, Error>}
  */
 export const transact = (db, changes) =>
-  db.tree.write(function* (writer) {
+  db.store.write(function* (writer) {
     const root = yield* writer.getRoot()
     const hash = root.hash
     const time = Date.now()

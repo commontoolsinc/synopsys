@@ -1,9 +1,7 @@
 import * as Type from '../replica/type.js'
 import * as DAG from '../replica/dag.js'
 import * as JSON from '@ipld/dag-json'
-import { base64 } from 'multiformats/bases/base64'
 import { Task } from 'datalogia'
-import { get } from 'http'
 import { refer } from '../datum/reference.js'
 import { channel } from '../replica/sync.js'
 import * as Sync from '../sync.js'
@@ -24,6 +22,9 @@ import * as Sync from '../sync.js'
 export const open = ({ url, fetch = globalThis.fetch.bind(globalThis) }) =>
   RemoteSession.open({ url, fetch })
 
+/**
+ * @implements {Type.SynchronizationSource}
+ */
 class RemoteSession {
   /**
    * @param {Required<Connection>} connection
