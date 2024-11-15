@@ -28,10 +28,10 @@ export const main = function* ({
     url,
     mapSize: storeSize,
   })
-  const sync = yield* Sync.open(data)
+  const sync = yield* Sync.open({ store: data })
   const service = yield* Service.open({
     sync,
-    source: data,
+    store: data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
     }),

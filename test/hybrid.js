@@ -1,10 +1,8 @@
 import { transact, query } from 'datalogia'
-import { refer, Task, $, Type } from 'synopsys'
-import * as Hybrid from 'synopsys/store/hybrid'
-
+import { refer, Task, $, Type, Hybrid } from 'synopsys'
 /**
  * @param {object} options
- * @param {() => Task.Task<{durable: Type.DataSource, ephemeral: Type.DataSource}, Error>} options.open
+ * @param {() => Task.Task<{durable: Type.Store, ephemeral: Type.Store}, Error>} options.open
  * @returns {import('entail').Suite}
  */
 export default (options) => ({
@@ -12,7 +10,7 @@ export default (options) => ({
     Task.spawn(function* () {
       const { durable, ephemeral } = yield* options.open()
 
-      const hybrid = Hybrid.from({ ephemeral, durable })
+      const hybrid = yield* Hybrid.open({ ephemeral, durable })
 
       const provider = refer({
         service: { fetch: {} },
@@ -24,7 +22,7 @@ export default (options) => ({
         },
       }
 
-      const init = yield* transact(hybrid, [
+      const init = yield* hybrid.transact([
         { Assert: [provider, '~/fetch', refer(request)] },
         { Assert: [refer(request), 'request/status', 'Pending'] },
       ])
@@ -51,13 +49,13 @@ export default (options) => ({
       )
 
       assert.deepEqual(
-        yield* queryJoint(durable),
+        yield* queryJoint(hybrid.durable),
         [],
         'fact is missing in durable database'
       )
 
       assert.deepEqual(
-        yield* queryJoint(ephemeral),
+        yield* queryJoint(hybrid.ephemeral),
         [],
         'fact is missing in ephemeral database'
       )
@@ -80,13 +78,13 @@ export default (options) => ({
       )
 
       assert.deepEqual(
-        yield* queryLocal(durable),
+        yield* queryLocal(hybrid.durable),
         [],
         'fact is missing in durable database'
       )
 
       assert.deepEqual(
-        yield* queryLocal(ephemeral),
+        yield* queryLocal(hybrid.ephemeral),
         [{ request: refer(request) }],
         'fact is found in ephemeral database'
       )
@@ -109,13 +107,13 @@ export default (options) => ({
       )
 
       assert.deepEqual(
-        yield* queryGlobal(ephemeral),
+        yield* queryGlobal(hybrid.ephemeral),
         [],
         'fact is missing in durable database'
       )
 
       assert.deepEqual(
-        yield* queryGlobal(durable),
+        yield* queryGlobal(hybrid.durable),
         [{ status: 'Pending' }],
         'fact is found in durable database'
       )

@@ -1,5 +1,3 @@
-import * as Okra from '@canvas-js/okra'
-export * from '@canvas-js/okra'
 import { Constant, API, Task } from 'datalogia'
 import * as DB from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
@@ -9,7 +7,7 @@ import * as Entity from '../datum/entity.js'
 import * as Reference from '../datum/reference.js'
 import * as Datum from '../datum.js'
 import * as Fact from '../fact.js'
-import * as Type from './type.js'
+import * as Type from '../store/type.js'
 
 const { Bytes } = Constant
 export { Task, CBOR }
@@ -62,7 +60,7 @@ export class DataSource {
 class Revision {
   #root
   /**
-   * @param {Okra.Node} root
+   * @param {Type.Node} root
    */
   constructor(root) {
     this.#root = root

@@ -12,6 +12,7 @@ import { toEventSource } from './replica/selection.js'
 import { broadcast } from './replica/sync.js'
 import * as DAG from './replica/dag.js'
 import * as Sync from './sync.js'
+import * as Source from './source/store.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,29 +25,30 @@ const CORS = {
  *
  * @param {object} source
  * @param {Sync.Service} [source.sync]
- * @param {Replica.DataSource} source.data
+ * @param {Replica.Store} source.store
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
  */
-export const open = function* ({ data, blobs, sync }) {
-  const replica = yield* Replica.open({ local: { source: data } })
+export const open = function* ({ store, blobs, sync }) {
+  const source = yield* Source.open(store)
+  const replica = yield* Replica.open({ local: { source } })
 
-  return new Service(replica, sync, data, blobs)
+  return new Service(replica, sync, source, blobs)
 }
 
 export class Service {
   /**
    * @param {Replica.Replica} replica
    * @param {Sync.Service|undefined} sync
-   * @param {Replica.DataSource} data
+   * @param {Replica.DataSource} source
    * @param {Replica.BlobStore} blobs
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
    *
    */
-  constructor(replica, sync, data, blobs, subscriptions = new Map()) {
+  constructor(replica, sync, source, blobs, subscriptions = new Map()) {
     this.replica = replica
     this.sync = sync
-    this.data = data
+    this.source = source
     this.blobs = blobs
     this.subscriptions = subscriptions
 
@@ -67,7 +69,7 @@ export class Service {
  * @param {MutableSelf} self
  */
 export const close = function* (self) {
-  yield* self.data.close()
+  yield* self.source.close()
 }
 
 /**
@@ -210,7 +212,7 @@ export function* importQuery(self, request) {
     const query = refer(yield* Query.fromBytes(body))
     if (!self.subscriptions.get(query.toString())) {
       // Check if we have this query stored in the database already.
-      const selection = yield* DB.query(self.data, {
+      const selection = yield* DB.query(self.source, {
         select: {},
         where: [{ Case: [synopsys, 'synopsys/query', query] }],
       })
@@ -219,7 +221,7 @@ export function* importQuery(self, request) {
       // we probably want to store actual query into a blob but this will do
       // for now.
       if (selection.length === 0) {
-        yield* DB.transact(self.data, [
+        yield* DB.transact(self.source, [
           { Assert: [synopsys, 'synopsys/query', query] },
           { Assert: [query, 'blob/content', body] },
         ])
@@ -319,12 +321,12 @@ export function* importBlob(self, request) {
 
 /**
  * @typedef {object} Self
- * @property {DB.API.Querier} data - The underlying data store.
+ * @property {DB.API.Querier} source - The underlying data store.
  * @property {Replica.BlobReader} blobs
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
- * @typedef {Self & {sync?: Sync.Service, data: Replica.DataSource, blobs: Replica.BlobStore}} MutableSelf
+ * @typedef {Self & {sync?: Sync.Service, source: Replica.DataSource, blobs: Replica.BlobStore}} MutableSelf
  */
 
 /**
@@ -338,7 +340,7 @@ export const subscribe = function* (self, id) {
     return channel
   } else {
     const { content } = Replica.$
-    const [selection] = yield* DB.query(self.data, {
+    const [selection] = yield* DB.query(self.source, {
       select: { content },
       where: [{ Case: [id, 'blob/content', content] }],
     })
@@ -363,13 +365,13 @@ export const subscribe = function* (self, id) {
  */
 export function* query(self, id) {
   const { content } = Replica.$
-  const [match] = yield* DB.query(self.data, {
+  const [match] = yield* DB.query(self.source, {
     select: { content },
     where: [{ Case: [id, 'blob/content', content] }],
   })
   const bytes = match?.content
   const query = bytes ? yield* Query.fromBytes(bytes) : null
-  const selection = query ? yield* DB.query(self.data, query) : null
+  const selection = query ? yield* DB.query(self.source, query) : null
   if (selection) {
     return selection
   } else {
@@ -386,7 +388,7 @@ export const head = function* (self, request) {
   try {
     const entity = Reference.fromString(url.pathname.slice(1))
     const { type, size } = Replica.$
-    const [match] = yield* DB.query(self.data, {
+    const [match] = yield* DB.query(self.source, {
       select: { type, size },
       where: [
         { Case: [entity, 'content/type', type] },

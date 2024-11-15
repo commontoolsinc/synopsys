@@ -1,5 +1,5 @@
 import * as Memory from 'synopsys/store/memory'
-import { Replica, Task, refer, $ } from 'synopsys'
+import { Replica, Task, refer, $, Source } from 'synopsys'
 import { query } from 'datalogia'
 
 /**
@@ -8,7 +8,8 @@ import { query } from 'datalogia'
 export const testImport = {
   'test import object': (assert) =>
     Task.spawn(function* () {
-      const source = yield* Memory.open()
+      const store = yield* Memory.open()
+      const source = yield* Source.open(store)
       const replica = yield* Replica.open({ local: { source } })
 
       const data = {

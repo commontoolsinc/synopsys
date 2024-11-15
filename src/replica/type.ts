@@ -37,7 +37,7 @@ import type {
 } from 'datalogia'
 import type { DataBase, DataProvider } from '../store/type.js'
 import type { Invocation, Task } from 'datalogia/task'
-import type { Commit } from '../store/okra.js'
+import type { Commit } from '../source/store.js'
 import { Phantom } from 'multiformats'
 
 export type Constant = API.Constant

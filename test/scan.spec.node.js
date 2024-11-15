@@ -1,8 +1,8 @@
 import * as Memory from 'synopsys/store/memory'
-import * as Store from '../src/store/lmdb.js'
+import * as LMDB from '../src/store/lmdb.js'
 import { transact } from 'datalogia'
 import * as OS from 'node:os'
-import { refer, Task } from '../src/lib.js'
+import { refer, Task, Source } from 'synopsys'
 import { pathToFileURL } from 'node:url'
 import FS from 'node:fs'
 
@@ -160,7 +160,8 @@ export const testScan = {
  * @param {URL} [url]
  */
 function* loadTodo(url) {
-  const db = url ? yield* Store.open({ url }) : yield* Memory.open()
+  const store = url ? yield* LMDB.open({ url }) : yield* Memory.open()
+  const db = yield* Source.open(store)
 
   const list = refer({ title: 'Todo List' })
   const milk = refer({ title: 'Buy Milk' })

@@ -6,7 +6,8 @@ import * as Synopsys from 'synopsys'
 export const testLocal = {
   subscription: Subscription.testSubscription({
     *connect() {
-      const source = yield* Memory.open()
+      const store = yield* Memory.open()
+      const source = yield* Synopsys.Source.open(store)
       const replica = yield* Synopsys.open({ local: { source } })
       return replica
     },
@@ -14,7 +15,8 @@ export const testLocal = {
 
   query: Query.testQuery({
     *connect() {
-      const source = yield* Memory.open()
+      const store = yield* Memory.open()
+      const source = yield* Synopsys.Source.open(store)
       const replica = yield* Synopsys.open({ local: { source } })
       return replica
     },

@@ -1,4 +1,4 @@
-import { refer, Task, Hybrid } from 'synopsys'
+import { refer, Task, Hybrid, Source } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 import * as Service from '../src/service.js'
 import * as Blobs from 'synopsys/blob/memory'
@@ -9,10 +9,10 @@ import * as Sync from '../src/sync.js'
 export const testSync = {
   'test sync protocol': (assert) =>
     Task.spawn(function* () {
-      const data = yield* Memory.open()
-      const sync = yield* Sync.open(data)
+      const store = yield* Memory.open()
+      const sync = yield* Sync.open({ store })
       const service = yield* Service.open({
-        data,
+        store,
         sync,
         blobs: yield* Blobs.open(),
       })
@@ -29,9 +29,9 @@ export const testSync = {
       const durable = yield* Memory.open()
       const ephemeral = yield* Memory.open()
 
-      const local = Hybrid.from({ durable, ephemeral })
+      const local = yield* Hybrid.open({ durable, ephemeral })
 
-      yield* data.transact([
+      yield* service.source.transact([
         { Assert: [project, 'name', 'synopsys'] },
         { Assert: [project, 'version', '1.0.0'] },
       ])

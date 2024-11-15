@@ -11,7 +11,7 @@ export const testService = {
   'options request': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -36,7 +36,7 @@ export const testService = {
   'patch transacts data': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -59,7 +59,7 @@ export const testService = {
   'unsupported method': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -77,7 +77,7 @@ export const testService = {
   'GET /': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -96,7 +96,7 @@ export const testService = {
   'GET /jibberish': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -114,7 +114,7 @@ export const testService = {
   'rejects invalid query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -138,7 +138,7 @@ export const testService = {
   'saves good query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -162,7 +162,7 @@ export const testService = {
         `http://localhost:8080/ba4jcbkpzhfmtjxocg7ztwchbgzzjabb36wko2iqzlpikhlrga2cttoef`
       )
 
-      const found = yield* DB.query(service.data, {
+      const found = yield* DB.query(service.source, {
         select: { query: $.query },
         where: [{ Case: [Replica.synopsys, 'synopsys/query', $.query] }],
       })
@@ -176,7 +176,7 @@ export const testService = {
   'returns event source when getting query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -241,7 +241,7 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
   'fails to find query': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 
@@ -266,7 +266,7 @@ data:[{"query":{"/":"baedreigpx7y7rjahspwuhq2nu4rdgv2y5omzmktwf5eb3ybqk5fqundvmy
   'concurrent subscriptions': (assert) =>
     Task.spawn(function* () {
       const service = yield* Service.open({
-        data: yield* Store.open(),
+        store: yield* Store.open(),
         blobs: yield* Blobs.open(),
       })
 

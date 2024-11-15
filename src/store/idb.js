@@ -1,13 +1,10 @@
 import { IDBTree, IDBStore } from '@canvas-js/okra-idb'
-import * as Okra from '@canvas-js/okra'
 import * as IDB from 'idb'
-import * as Store from './okra.js'
 import { Task } from 'datalogia'
-import { sync } from '@canvas-js/okra'
 import { Async } from './store.js'
 import * as Type from './type.js'
 
-export * from './okra.js'
+export * from '../source/store.js'
 
 /**
  * Opens a database instance at the given URL. If the URL is not provided or
@@ -50,7 +47,7 @@ export const open = function* (source) {
   )
   const okra = yield* Task.wait(FixedIDBTree.open(idb, store, tree))
 
-  return yield* Store.open(new Async(okra))
+  return new Async(okra)
 }
 
 /**
@@ -80,7 +77,7 @@ class FixedIDBTree extends IDBTree {
    *
    * @param {IDB.IDBPDatabase} db
    * @param {string} storeName
-   * @param {Partial<Okra.Metadata>} options
+   * @param {Partial<Metadata>} options
    */
   static async open(db, storeName, options = {}) {
     const store = new IDBStore(db, storeName)

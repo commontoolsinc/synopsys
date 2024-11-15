@@ -1,10 +1,10 @@
 import { refer } from 'merkle-reference'
-import * as Type from './type.js'
+import * as Type from '../store/type.js'
 import { Task, transact, query } from 'datalogia'
 import { differentiate } from '../differential.js'
 import * as Remote from '../connection/remote.js'
 import * as Local from '../connection/local.js'
-import * as Source from '../store/okra.js'
+import * as Source from './store.js'
 
 export { transact, query }
 
@@ -23,8 +23,8 @@ export const connect = (source) =>
 
 /**
  * @typedef {object} Source
- * @property {Type.DataSource} ephemeral
- * @property {Type.DataSource} durable
+ * @property {Type.Store} ephemeral
+ * @property {Type.Store} durable
  */
 
 /**
@@ -32,7 +32,12 @@ export const connect = (source) =>
  *
  * @param {Source} source
  */
-export const from = (source) => new HybridSource(source)
+export function* open(source) {
+  const ephemeral = yield* Source.open(source.ephemeral)
+  const durable = yield* Source.open(source.durable)
+
+  return new HybridSource({ ephemeral, durable, store: source.durable })
+}
 
 /**
  * @param {Type.Instruction} instruction
@@ -61,18 +66,25 @@ const updateDurable = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
  */
 class HybridSource {
   /**
-   * @param {Source} source
+   * @param {object} source
+   * @param {Type.DataSource} source.ephemeral
+   * @param {Type.DataSource} source.durable
+   * @param {Type.Store} source.store
    */
-  constructor(source) {
-    this.source = source
+  constructor({ ephemeral, durable, store }) {
+    this.ephemeral = ephemeral
+    this.durable = durable
+    this.store = store
+
+    this.writable = Task.wait({})
   }
 
   /**
    * @param {Type.FactsSelector} selector
    */
   *scan(selector) {
-    const ephemeral = yield* Task.fork(this.source.ephemeral.scan(selector))
-    const durable = yield* Task.fork(this.source.durable.scan(selector))
+    const ephemeral = yield* Task.fork(this.ephemeral.scan(selector))
+    const durable = yield* Task.fork(this.durable.scan(selector))
 
     return [...(yield* ephemeral), ...(yield* durable)]
   }
@@ -92,7 +104,7 @@ class HybridSource {
       }
     }
 
-    const commit = yield* this.source.ephemeral.transact(ephemeral)
+    const commit = yield* this.ephemeral.transact(ephemeral)
 
     // If we have changes to durable store we need to schedule a write
     // after all prior writes are done. This ensures that the durable
@@ -112,15 +124,15 @@ class HybridSource {
    */
   static *transact(self, changes) {
     yield* Task.result(self.writable)
-    const { after } = yield* self.source.durable.transact(changes)
+    const { after } = yield* self.durable.transact(changes)
     // Capture upstream state so we can capture it in the merkle root
 
-    return yield* self.source.ephemeral.transact([updateDurable(after.id)])
+    return yield* self.ephemeral.transact([updateDurable(after.id)])
   }
 
   *close() {
-    const ephemeral = yield* Task.fork(this.source.ephemeral.close())
-    const durable = yield* Task.fork(this.source.durable.close())
+    const ephemeral = yield* Task.fork(this.ephemeral.close())
+    const durable = yield* Task.fork(this.durable.close())
 
     yield* ephemeral
     yield* durable
@@ -146,7 +158,7 @@ class HybridSource {
    */
   static *merge(self, source) {
     yield* self.writable
-    return yield* self.source.durable.write(function* (writer) {
+    return yield* self.store.write(function* (writer) {
       const delta = yield* differentiate(
         writer,
         source,
