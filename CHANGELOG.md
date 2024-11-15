@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.0.0](https://github.com/commontoolsinc/synopsys/compare/v3.0.0...v4.0.0) (2024-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* add subscription api to hybrid db ([#59](https://github.com/commontoolsinc/synopsys/issues/59))
+
+### Features
+
+* add subscription api to hybrid db ([#59](https://github.com/commontoolsinc/synopsys/issues/59)) ([2f34f6d](https://github.com/commontoolsinc/synopsys/commit/2f34f6d7b2993ee011f3c196fab38e67e39a396b))
+
+
+### Bug Fixes
+
+* add subscription api ([7cff4e2](https://github.com/commontoolsinc/synopsys/commit/7cff4e21759ece538bfd1433faf7fcfa5f17b2ae))
+
 ## [3.0.0](https://github.com/commontoolsinc/synopsys/compare/v2.3.0...v3.0.0) (2024-11-14)
 
 
