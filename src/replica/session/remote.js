@@ -35,6 +35,14 @@ export function* open({ url, fetch = globalThis.fetch }) {
 }
 
 /**
+ *
+ * @param {Remote} session
+ */
+export function* close(session) {
+  return {}
+}
+
+/**
  * @template {DB.Selector} [Select=DB.API.Selector]
  * @param {Remote} session
  * @param {DB.Query<Select>} query
@@ -171,5 +179,9 @@ class Remote {
    */
   transact(changes) {
     return transact(this, changes)
+  }
+
+  close() {
+    return close(this)
   }
 }

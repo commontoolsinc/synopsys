@@ -9,8 +9,16 @@ import type {
   ReadWriteTransaction,
 } from '@canvas-js/okra'
 
-import type { FactsSelector, Datum } from 'datalogia'
-import { Transaction, Commit, Revision } from '../replica/type.js'
+import type {
+  FactsSelector,
+  Datum,
+  Transactor,
+  Querier,
+  Query,
+  InferBindings as Selection,
+  Selector,
+} from 'datalogia'
+import { Transaction, Commit, Revision, Instruction } from '../replica/type.js'
 export * from '../replica/type.js'
 
 export type {
@@ -31,11 +39,26 @@ export interface AwaitIterable<T> {
   next(): Awaitable<IteratorResult<T>>
 }
 
-export interface Reader {
-  getRoot(): Task<Node>
-  getNode(level: number, key: Uint8Array): Task<Node | null>
-  getChildren(level: number, key: Uint8Array): Task<Node[]>
+export interface PullSource {
+  getRoot(): Task<Node, Error>
+  getNode(level: number, key: Uint8Array): Task<Node | null, Error>
 
+  getChildren(level: number, key: Uint8Array): Task<Node[], Error>
+}
+
+export interface PullTarget extends PullSource {
+  nodes(
+    level: number,
+    lowerBound?: Bound<Key> | null,
+    upperBound?: Bound<Key> | null,
+    options?: { reverse?: boolean }
+  ): AwaitIterable<Node>
+}
+
+/**
+ * Represents a data index reader interface.
+ */
+export interface StoreReader extends PullSource, PullTarget {
   entries(
     lowerBound?: Bound<Uint8Array> | null,
     upperBound?: Bound<Uint8Array> | null,
@@ -44,35 +67,30 @@ export interface Reader {
     }
   ): AwaitIterable<Entry>
 
-  nodes(
-    level: number,
-    lowerBound?: Bound<Key> | null,
-    upperBound?: Bound<Key> | null,
-    options?: {
-      reverse?: boolean
-    }
-  ): AwaitIterable<Node>
-
   get(key: Uint8Array): Task<Uint8Array | null>
 }
 
-export interface Writer {
+export interface StoreWriter {
   delete(key: Uint8Array): Task<void>
   set(key: Uint8Array, value: Uint8Array): Task<void>
 
   integrate(changes: Change[]): Task<Node>
 }
 
-export interface Editor extends Reader, Writer {}
+export interface StoreEditor extends StoreReader, StoreWriter {}
 
 export interface Store {
-  read<T, X extends Error>(read: (reader: Reader) => Task<T, X>): Task<T, X>
-  write<T, X extends Error>(write: (editor: Editor) => Task<T, X>): Task<T, X>
+  read<T, X extends Error>(
+    read: (reader: StoreReader) => Task<T, X>
+  ): Task<T, X>
+  write<T, X extends Error>(
+    write: (editor: StoreEditor) => Task<T, X>
+  ): Task<T, X>
 
-  close(): Task<void>
+  close(): Task<{}>
 }
 
-export interface AsyncSource {
+export interface AsyncReader {
   getRoot(): Promise<Node>
   getNode(level: number, key: Uint8Array): Promise<Node | null>
   getChildren(level: number, key: Uint8Array): Promise<Node[]>
@@ -97,37 +115,39 @@ export interface AsyncSource {
   close?: () => Awaitable<void>
 }
 
-export interface Database {
-  store: Store
-
+export interface DataProvider {
   scan(selector: FactsSelector): Task<Datum[], Error>
-  transact(charges: Transaction): Task<Commit, Error>
-  status(): Task<Revision, Error>
+}
 
+export interface DataCommitter {
+  transact(changes: Iterable<Instruction>): Task<Commit, Error>
+}
+
+export interface Resource {
   close(): Task<{}, Error>
 }
 
-export interface Root {
-  level: number
-  key: Uint8Array
+export interface DataSource extends Resource, DataProvider, DataCommitter {}
 
-  hash: Uint8Array
+export interface DataSelector {
+  query<Select extends Selector>(
+    query: Query<Select>
+  ): Task<Selection<Select>[], Error>
 }
+
+export interface DataBase extends Resource, DataCommitter, DataSelector {}
 
 export type Change = Assign | Remove
 
 export type Assign = [key: Uint8Array, value: Uint8Array]
 export type Remove = [key: Uint8Array]
 
-export interface PullSource {
-  getRoot(): Task<Node, Error>
-  getNode(level: number, key: Uint8Array): Task<Node | null, Error>
-
-  getChildren(level: number, key: Uint8Array): Task<Node[], Error>
-}
-
-export interface PushSource {
+export interface PushTarget {
   integrate(changes: Change[]): Task<Node, Error>
 }
 
-export interface SynchronizationSource extends PullSource, PushSource {}
+export interface SynchronizationSource extends PullSource, PushTarget {}
+
+export interface DataRepository extends DataSource {
+  store: Store
+}

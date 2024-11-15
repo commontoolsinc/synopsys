@@ -95,7 +95,7 @@ function* toCommand(bytes) {
 
 /**
  *
- * @param {Type.PullSource & Type.PushSource} source
+ * @param {Type.PullSource & Type.PushTarget} source
  * @param {ReadableStreamDefaultReader<Uint8Array>} input
  * @param {WritableStreamDefaultWriter<Uint8Array>} output
  */
@@ -126,7 +126,7 @@ export function* interpret(source, input, output) {
 }
 
 /**
- * @param {Type.PullSource & Type.PushSource} source
+ * @param {Type.PullSource & Type.PushTarget} source
  * @param {Command} command
  */
 

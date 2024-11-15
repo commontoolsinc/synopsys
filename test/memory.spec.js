@@ -1,5 +1,5 @@
 import { transact, query, Var, match, not } from 'datalogia'
-import { refer, Task, $ } from 'synopsys'
+import { refer, Task, $, Source } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
@@ -8,11 +8,11 @@ import * as Memory from 'synopsys/store/memory'
 export const testQuery = {
   selector: (assert) =>
     Task.spawn(function* () {
-      const { db } = yield* open()
+      const { source } = yield* open()
 
       const { title, done, name, list, todo } = $
 
-      const matches = yield* query(db, {
+      const matches = yield* query(source, {
         select: {
           name,
           todo: [
@@ -54,7 +54,8 @@ export const testQuery = {
 }
 
 function* open() {
-  const db = yield* Memory.open()
+  const store = yield* Memory.open()
+  const source = yield* Source.open(store)
 
   const groceries = refer({ name: 'Groceries' })
   const chores = refer({ name: 'Chores' })
@@ -66,7 +67,7 @@ function* open() {
   const laundry = refer({ title: 'Do Laundry' })
   const dishes = refer({ title: 'Do Dishes' })
 
-  const tx = yield* transact(db, [
+  const tx = yield* transact(source, [
     { Assert: [groceries, 'name', 'Groceries'] },
     { Assert: [groceries, 'todo', milk] },
     { Assert: [milk, 'title', 'Buy Milk'] },
@@ -86,7 +87,7 @@ function* open() {
   const cause = refer(tx.cause)
 
   return {
-    db,
+    source,
     cause,
     groceries,
     chores,

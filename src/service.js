@@ -12,6 +12,7 @@ import { toEventSource } from './replica/selection.js'
 import { broadcast } from './replica/sync.js'
 import * as DAG from './replica/dag.js'
 import * as Sync from './sync.js'
+import * as Source from './source/store.js'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -38,33 +39,31 @@ const rewrite = (request, path) => {
  *
  * @param {object} source
  * @param {Sync.Service} [source.sync]
- * @param {Replica.DataStore} source.data
+ * @param {Replica.Store} source.store
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
  */
-export const open = function* ({ data, blobs, sync }) {
-  const replica = yield* Replica.open({ local: { store: data } })
-  const revision = yield* data.status()
+export const open = function* ({ store, blobs, sync }) {
+  const source = yield* Source.open(store)
+  const replica = yield* Replica.open({ local: { source } })
 
-  return new Service(replica, sync, data, blobs, revision)
+  return new Service(replica, sync, source, blobs)
 }
 
 export class Service {
   /**
-   * @param {Replica.Revision} revision
    * @param {Replica.Replica} replica
    * @param {Sync.Service|undefined} sync
-   * @param {Replica.DataStore} data
+   * @param {Replica.DataSource} source
    * @param {Replica.BlobStore} blobs
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
    *
    */
-  constructor(replica, sync, data, blobs, revision, subscriptions = new Map()) {
+  constructor(replica, sync, source, blobs, subscriptions = new Map()) {
     this.replica = replica
     this.sync = sync
-    this.data = data
+    this.source = source
     this.blobs = blobs
-    this.revision = revision
     this.subscriptions = subscriptions
 
     this.fetch = this.fetch.bind(this)
@@ -84,7 +83,7 @@ export class Service {
  * @param {MutableSelf} self
  */
 export const close = function* (self) {
-  yield* self.data.close()
+  yield* self.source.close()
 }
 
 /**
@@ -124,9 +123,7 @@ export const fetch = function* (self, request) {
  * @param {Replica.Transaction} changes
  */
 export function* transact(self, changes) {
-  const commit = yield* self.replica.transact(changes)
-  self.revision = commit.after
-  return commit
+  return yield* self.replica.transact(changes)
 }
 
 /**
@@ -229,7 +226,7 @@ export function* importQuery(self, request) {
     const query = refer(yield* Query.fromBytes(body))
     if (!self.subscriptions.get(query.toString())) {
       // Check if we have this query stored in the database already.
-      const selection = yield* DB.query(self.data, {
+      const selection = yield* DB.query(self.source, {
         select: {},
         where: [{ Case: [synopsys, 'synopsys/query', query] }],
       })
@@ -238,7 +235,7 @@ export function* importQuery(self, request) {
       // we probably want to store actual query into a blob but this will do
       // for now.
       if (selection.length === 0) {
-        yield* DB.transact(self.data, [
+        yield* DB.transact(self.source, [
           { Assert: [synopsys, 'synopsys/query', query] },
           { Assert: [query, 'blob/content', body] },
         ])
@@ -338,13 +335,12 @@ export function* importBlob(self, request) {
 
 /**
  * @typedef {object} Self
- * @property {Replica.Revision} revision - Current revision of the store.
- * @property {DB.API.Querier} data - The underlying data store.
+ * @property {DB.API.Querier} source - The underlying data store.
  * @property {Replica.BlobReader} blobs
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
- * @typedef {Self & {sync?: Sync.Service, data: Replica.DataStore, blobs: Replica.BlobStore}} MutableSelf
+ * @typedef {Self & {sync?: Sync.Service, source: Replica.DataSource, blobs: Replica.BlobStore}} MutableSelf
  */
 
 /**
@@ -358,7 +354,7 @@ export const subscribe = function* (self, id) {
     return channel
   } else {
     const { content } = Replica.$
-    const [selection] = yield* DB.query(self.data, {
+    const [selection] = yield* DB.query(self.source, {
       select: { content },
       where: [{ Case: [id, 'blob/content', content] }],
     })
@@ -383,13 +379,13 @@ export const subscribe = function* (self, id) {
  */
 export function* query(self, id) {
   const { content } = Replica.$
-  const [match] = yield* DB.query(self.data, {
+  const [match] = yield* DB.query(self.source, {
     select: { content },
     where: [{ Case: [id, 'blob/content', content] }],
   })
   const bytes = match?.content
   const query = bytes ? yield* Query.fromBytes(bytes) : null
-  const selection = query ? yield* DB.query(self.data, query) : null
+  const selection = query ? yield* DB.query(self.source, query) : null
   if (selection) {
     return selection
   } else {
@@ -404,13 +400,13 @@ export function* query(self, id) {
 export const head = function* (self, request) {
   const url = new URL(request.url)
   try {
-    const id = Reference.fromString(url.pathname.slice(1))
+    const entity = Reference.fromString(url.pathname.slice(1))
     const { type, size } = Replica.$
-    const [match] = yield* DB.query(self.data, {
+    const [match] = yield* DB.query(self.source, {
       select: { type, size },
       where: [
-        { Case: [id, 'content/type', type] },
-        { Case: [id, 'content/length', size] },
+        { Case: [entity, 'content/type', type] },
+        { Case: [entity, 'content/length', size] },
       ],
     })
 
@@ -425,7 +421,7 @@ export const head = function* (self, request) {
       })
     } else {
       return yield* error(
-        { message: `Content ${id} not found` },
+        { message: `Content ${entity} not found` },
         { status: 404 }
       )
     }

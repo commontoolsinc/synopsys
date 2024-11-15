@@ -1,9 +1,8 @@
 import * as LMDB from '@canvas-js/okra-lmdb'
-import * as Store from './okra.js'
 import { fileURLToPath } from 'node:url'
 import { Sync } from './store.js'
 
-export * from './okra.js'
+export * from '../source/store.js'
 
 /**
  * Opens a database instance at the given URL. If the URL is not provided or
@@ -16,5 +15,6 @@ export * from './okra.js'
  *
  * @param {Open} source
  */
-export const open = ({ url, ...options }) =>
-  Store.open(new Sync(new LMDB.Tree(fileURLToPath(url), options)))
+export function* open({ url, ...options }) {
+  return new Sync(new LMDB.Tree(fileURLToPath(url), options))
+}

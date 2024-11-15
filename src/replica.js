@@ -2,6 +2,7 @@ import * as Query from './replica/query.js'
 import * as Type from './replica/type.js'
 import * as Local from './replica/session/local.js'
 import * as Remote from './replica/session/remote.js'
+import * as Hybrid from './source/hybrid.js'
 import { refer } from './datum/reference.js'
 import $, { variable } from './replica/query/scope.js'
 export { Task } from 'datalogia'
@@ -41,6 +42,17 @@ export function* open(options) {
 }
 
 /**
+ * @param {ReplicaState} self
+ */
+export function* close({ session, subscriptions }) {
+  for (const subscription of subscriptions.values()) {
+    subscription.abort()
+  }
+  subscriptions.clear()
+  return yield* session.close()
+}
+
+/**
  * @template {Type.Selector} [Select=Type.Selector]
  * @param {ReplicaState} self
  * @param {Type.Query<Select>} query
@@ -65,7 +77,9 @@ export function* subscribe({ session, subscriptions }, query) {
  * @param {ReplicaState} self
  * @param {Type.Transaction} changes
  */
-export const transact = ({ session }, changes) => session.transact(changes)
+export const transact = ({ session }, changes) => {
+  return session.transact(changes)
+}
 
 /**
  * @template {Type.Selector} [Select=Type.Selector]
@@ -74,6 +88,9 @@ export const transact = ({ session }, changes) => session.transact(changes)
  */
 export const query = ({ session }, query) => session.query(query)
 
+/**
+ * @implements {Type.Replica}
+ */
 class Replica {
   /**
    * @param {Type.Replica} session
@@ -82,6 +99,10 @@ class Replica {
   constructor(session, subscriptions) {
     this.session = session
     this.subscriptions = subscriptions
+  }
+
+  close() {
+    return close(this)
   }
 
   /**

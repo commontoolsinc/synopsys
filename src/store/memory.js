@@ -1,6 +1,5 @@
 import * as Memory from '@canvas-js/okra-memory'
-import * as Store from './okra.js'
-export * from './okra.js'
+export * from '../source/store.js'
 import { Sync } from './store.js'
 
 /**
@@ -12,4 +11,6 @@ import { Sync } from './store.js'
  *
  * @param {Open} [source]
  */
-export const open = (source) => Store.open(new Sync(new Memory.Tree(source)))
+export function* open(source) {
+  return new Sync(new Memory.Tree(source))
+}

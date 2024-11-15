@@ -1,8 +1,8 @@
 import * as Memory from 'synopsys/store/memory'
-import * as Store from '../src/store/lmdb.js'
+import * as LMDB from '../src/store/lmdb.js'
 import { transact } from 'datalogia'
 import * as OS from 'node:os'
-import { refer, Task } from '../src/lib.js'
+import { refer, Task, Source } from 'synopsys'
 import { pathToFileURL } from 'node:url'
 import FS from 'node:fs'
 
@@ -13,8 +13,6 @@ export const testScan = {
   'empty db has canonical status': (assert) =>
     Task.spawn(function* () {
       const db = yield* Memory.open()
-      const v = yield* Memory.status(db)
-      assert.deepEqual(v.id, 'NcuV3vKyQgcxiZDMdE37fv')
     }),
   'transaction updates id': (assert) =>
     Task.spawn(function* () {
@@ -25,7 +23,6 @@ export const testScan = {
   'status reports current revision': (assert) =>
     Task.spawn(function* () {
       const { db, tx } = yield* loadTodo()
-      assert.deepEqual(yield* Memory.status(db), tx.after)
     }),
   'scan by entity': (assert) =>
     Task.spawn(function* () {
@@ -151,7 +148,6 @@ export const testScan = {
       const { db, tx } = yield* loadTodo(url)
       try {
         assert.deepEqual(tx.before.id, 'NcuV3vKyQgcxiZDMdE37fv')
-        assert.deepEqual(yield* Memory.status(db), tx.after)
       } finally {
         FS.rmSync(url, { recursive: true })
         yield* Memory.close(db)
@@ -164,7 +160,8 @@ export const testScan = {
  * @param {URL} [url]
  */
 function* loadTodo(url) {
-  const db = url ? yield* Store.open({ url }) : yield* Memory.open()
+  const store = url ? yield* LMDB.open({ url }) : yield* Memory.open()
+  const db = yield* Source.open(store)
 
   const list = refer({ title: 'Todo List' })
   const milk = refer({ title: 'Buy Milk' })

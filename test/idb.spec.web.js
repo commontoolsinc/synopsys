@@ -1,5 +1,5 @@
 import { transact, query, Var, match, not } from 'datalogia'
-import { refer, Task, $ } from 'synopsys'
+import { refer, Task, $, Source } from 'synopsys'
 import * as IDB from 'synopsys/store/idb'
 import HybridSuite from './hybrid.js'
 import * as Memory from 'synopsys/store/memory'
@@ -64,7 +64,8 @@ export const testQuery = {
 }
 
 function* open() {
-  const db = yield* IDB.open()
+  const store = yield* IDB.open()
+  const db = yield* Source.open(store)
 
   const groceries = refer({ name: 'Groceries' })
   const chores = refer({ name: 'Chores' })

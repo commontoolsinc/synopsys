@@ -1,4 +1,4 @@
-import { Task, Replica, refer, variable } from 'synopsys'
+import { Task, Replica, refer, variable, Source } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 
 /**
@@ -8,7 +8,8 @@ export const testMatch = {
   'text/like': (assert) =>
     Task.spawn(function* () {
       const store = yield* Memory.open()
-      const replica = yield* Replica.open({ local: { store } })
+      const source = yield* Source.open(store)
+      const replica = yield* Replica.open({ local: { source } })
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })

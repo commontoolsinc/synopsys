@@ -1,4 +1,4 @@
-import { Replica, Task, refer } from 'synopsys'
+import { Replica, Task, refer, Source } from 'synopsys'
 import * as Store from '../src/store/lmdb.js'
 import FS from 'node:fs/promises'
 import * as Service from '../src/service.js'
@@ -17,8 +17,9 @@ export const testLMDB = {
         url,
         mapSize: 3 * 1024 * 1024 * 1024,
       })
+      const source = yield* Source.open(store)
       const replica = yield* Replica.open({
-        local: { store },
+        local: { source },
       })
 
       const size = 1
