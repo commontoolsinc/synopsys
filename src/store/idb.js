@@ -101,29 +101,3 @@ class FixedIDBTree extends IDBTree {
     })
   }
 }
-
-/**
- * Merges two stores together.
- *
- * @param {IDBTree} remote
- * @param {Okra.ReadWriteTransaction} local
- * @param {(key: Uint8Array, source: Uint8Array, target: Uint8Array) => Uint8Array | Promise<Uint8Array>} merge
- */
-export async function merge(remote, local, merge) {
-  const changes = []
-  for await (const delta of sync(remote, local)) {
-    if (delta.source != null && delta.target != null) {
-      const value = await merge(delta.key, delta.source, delta.target)
-      await local.set(delta.key, value)
-      changes.push([delta.key, value])
-    } else if (delta.target != null) {
-      changes.push([delta.key, delta.target])
-    } else if (delta.source != null) {
-      await local.set(delta.key, delta.source)
-    }
-  }
-
-  for (const [key, value] of changes) {
-    await remote.set(key, value)
-  }
-}

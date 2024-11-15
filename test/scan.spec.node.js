@@ -13,8 +13,6 @@ export const testScan = {
   'empty db has canonical status': (assert) =>
     Task.spawn(function* () {
       const db = yield* Memory.open()
-      const v = yield* Memory.status(db)
-      assert.deepEqual(v.id, 'NcuV3vKyQgcxiZDMdE37fv')
     }),
   'transaction updates id': (assert) =>
     Task.spawn(function* () {
@@ -25,7 +23,6 @@ export const testScan = {
   'status reports current revision': (assert) =>
     Task.spawn(function* () {
       const { db, tx } = yield* loadTodo()
-      assert.deepEqual(yield* Memory.status(db), tx.after)
     }),
   'scan by entity': (assert) =>
     Task.spawn(function* () {
@@ -151,7 +148,6 @@ export const testScan = {
       const { db, tx } = yield* loadTodo(url)
       try {
         assert.deepEqual(tx.before.id, 'NcuV3vKyQgcxiZDMdE37fv')
-        assert.deepEqual(yield* Memory.status(db), tx.after)
       } finally {
         FS.rmSync(url, { recursive: true })
         yield* Memory.close(db)

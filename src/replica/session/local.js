@@ -6,7 +6,7 @@ import { broadcast, channel } from '../sync.js'
 
 /**
  * @typedef {object} Open
- * @property {Type.DataStore} source.store
+ * @property {Type.DataSource} source
  */
 
 /**
@@ -16,7 +16,7 @@ import { broadcast, channel } from '../sync.js'
  * stop listening for commits.
  *
  * @typedef {object} LocalSession
- * @property {Type.DataStore} store
+ * @property {Type.DataSource} source
  * @property {Type.Reader<Type.Commit, never>} transaction
  */
 
@@ -26,23 +26,15 @@ import { broadcast, channel } from '../sync.js'
  * @param {Open} options
  */
 export const open = function* (options) {
-  return new Local(options.store)
+  return new Local(options.source)
 }
 
 /**
- * Subscribes to the given query.
- *
- * @template {DB.Selector} [Select=DB.API.Selector]
  * @param {Local} session
- * @param {DB.Query<Select>} query
+ * @returns
  */
-export function* subscribe(session, query) {
-  const source = new LocalSource(undefined, undefined, {
-    query,
-    session,
-  })
-
-  return broadcast(source)
+export function* close(session) {
+  return yield* session.source.close()
 }
 
 /**
@@ -53,7 +45,37 @@ export function* subscribe(session, query) {
  * @param {Local} session
  * @param {DB.Query<Select>} query
  */
-export const query = (session, query) => DB.query(session.store, query)
+export const query = (session, query) => DB.query(session.source, query)
+
+/**
+ * @param {Local} session
+ * @param {DB.Transaction} changes
+ * @returns {Type.Task<Type.Commit, Error>}
+ */
+export function* transact(session, changes) {
+  const commit = yield* DB.transact(session.source, changes)
+
+  // Write a new commit into transaction channel.
+  session.transaction.write(commit)
+
+  return commit
+}
+
+/**
+ * Subscribes to the given query.
+ *
+ * @template {DB.Selector} [Select=DB.API.Selector]
+ * @param {Local} session
+ * @param {DB.Query<Select>} query
+ */
+export function* subscribe(session, query) {
+  const source = new LocalSubscription(undefined, undefined, {
+    query,
+    session,
+  })
+
+  return broadcast(source)
+}
 
 /**
  * This is a readable stream that produces recomputed query selections when
@@ -66,7 +88,7 @@ export const query = (session, query) => DB.query(session.store, query)
  * @template {DB.Selector} [Select=DB.API.Selector]
  * @extends {ReadableStream<Type.Selection<Select>[]>}
  */
-class LocalSource extends ReadableStream {
+class LocalSubscription extends ReadableStream {
   /**
    * @param {undefined} source
    * @param {undefined} strategy
@@ -128,7 +150,7 @@ class LocalSource extends ReadableStream {
       }
     }
 
-    const result = yield* DB.query(this.session.store, this.query).result()
+    const result = yield* Task.result(DB.query(this.session.source, this.query))
     if (result.error) {
       subscriber.close()
       this.cancelled = true
@@ -159,30 +181,16 @@ class LocalSource extends ReadableStream {
 }
 
 /**
- * @param {Local} session
- * @param {DB.Transaction} changes
- * @returns {Type.Task<Type.Commit, Error>}
- */
-export function* transact(session, changes) {
-  const commit = yield* DB.transact(session.store, changes)
-
-  // Write a new commit into transaction channel.
-  session.transaction.write(commit)
-
-  return commit
-}
-
-/**
  * @implements {LocalSession}
  * @implements {Type.Session}
  */
 class Local {
   /**
    *
-   * @param {Type.DataStore} store
+   * @param {Type.DataSource} source
    */
-  constructor(store) {
-    this.store = store
+  constructor(source) {
+    this.source = source
     this.transaction = channel()
   }
 
@@ -207,5 +215,9 @@ class Local {
    */
   transact(changes) {
     return transact(this, changes)
+  }
+
+  close() {
+    return close(this)
   }
 }

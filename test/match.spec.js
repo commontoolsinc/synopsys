@@ -7,8 +7,8 @@ import * as Memory from 'synopsys/store/memory'
 export const testMatch = {
   'text/like': (assert) =>
     Task.spawn(function* () {
-      const store = yield* Memory.open()
-      const replica = yield* Replica.open({ local: { store } })
+      const source = yield* Memory.open()
+      const replica = yield* Replica.open({ local: { source } })
 
       const stuff = refer({ collection: 'stuff' })
       const member = refer({ member: 'email', of: stuff })

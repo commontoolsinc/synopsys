@@ -31,7 +31,7 @@ export const main = function* ({
   const sync = yield* Sync.open(data)
   const service = yield* Service.open({
     sync,
-    data,
+    source: data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
     }),

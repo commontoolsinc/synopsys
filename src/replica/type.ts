@@ -19,8 +19,11 @@ export type { BlockEncoder, BlockDecoder } from 'multiformats'
 export type { Task } from 'datalogia/task'
 export * from '../store/type.js'
 export type {
-  Reader as TreeReader,
-  Writer as TreeWriter,
+  StoreReader,
+  StoreWriter,
+  DataBase,
+  DataProvider,
+  Store,
 } from '../store/type.js'
 import type {
   Selector,
@@ -32,13 +35,14 @@ import type {
   Fact,
   Variant,
 } from 'datalogia'
+import type { DataBase, DataProvider } from '../store/type.js'
 import type { Invocation, Task } from 'datalogia/task'
-import type { Commit, Database as DataStore } from '../store/okra.js'
+import type { Commit } from '../store/okra.js'
 import { Phantom } from 'multiformats'
 
 export type Constant = API.Constant
 
-export { DataStore, Commit }
+export { Commit }
 export type Revision = { id: string }
 
 export interface BlobReader {
@@ -64,15 +68,10 @@ export interface Reference<T extends null | {} = null | {}> extends Phantom<T> {
  * Represents a session with a local or a remote database.
  */
 
-export interface Session {
-  query<Select extends Selector>(
-    query: Query<Select>
-  ): Task<Selection<Select>[], Error>
+export interface Session extends DataBase {
   subscribe<Select extends Selector>(
     query: Query<Select>
   ): Task<Subscription<Select>, Error>
-
-  transact(changes: Transaction): Task<Commit, Error>
 }
 
 /**
@@ -95,7 +94,7 @@ export interface BroadcastStream<T> {
   /**
    * Aborts this stream and closes all of its forks.
    */
-  abort(reason: Error): void
+  abort(reason?: Error): void
 
   /**
    * A promise that resolves when this stream is closed.

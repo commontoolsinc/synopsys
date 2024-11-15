@@ -4,7 +4,7 @@ import * as Hybrid from 'synopsys/store/hybrid'
 
 /**
  * @param {object} options
- * @param {() => Task.Task<{durable: Type.Database, ephemeral: Type.Database}, Error>} options.open
+ * @param {() => Task.Task<{durable: Type.DataSource, ephemeral: Type.DataSource}, Error>} options.open
  * @returns {import('entail').Suite}
  */
 export default (options) => ({
@@ -30,7 +30,7 @@ export default (options) => ({
       ])
 
       /**
-       * @param {Type.Database} db
+       * @param {Type.DataSource} db
        */
       const queryJoint = (db) =>
         query(db, {
@@ -63,7 +63,7 @@ export default (options) => ({
       )
 
       /**
-       * @param {Type.Database} db
+       * @param {Type.DataSource} db
        */
       const queryLocal = (db) =>
         query(db, {
@@ -92,7 +92,7 @@ export default (options) => ({
       )
 
       /**
-       * @param {Type.Database} db
+       * @param {Type.DataSource} db
        */
       const queryGlobal = (db) =>
         query(db, {

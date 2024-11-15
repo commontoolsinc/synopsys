@@ -1,6 +1,7 @@
 import * as Okra from '@canvas-js/okra'
 export * from '@canvas-js/okra'
 import { Constant, API, Task } from 'datalogia'
+import * as DB from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 import { base58btc } from 'multiformats/bases/base58'
 import * as Attribute from '../datum/attribute.js'
@@ -17,17 +18,15 @@ export { Task, CBOR }
  * Represents an opaque database type with a methods corresponding to the
  * static functions exported by this module.
  *
- * @implements {API.Querier}
- * @implements {API.Transactor<Commit>}
- * @implements {Type.Database}
+ * @implements {Type.DataSource}
  */
-export class Database {
+export class DataSource {
   /**
    *
-   * @param {Type.Store} tree
+   * @param {Type.Store} store
    */
-  constructor(tree) {
-    this.store = tree
+  constructor(store) {
+    this.store = store
   }
   /**
    * @param {API.FactsSelector} [selector]
@@ -43,12 +42,17 @@ export class Database {
     return transact(this, instructions)
   }
 
-  status() {
-    return status(this)
-  }
-
   close() {
     return close(this)
+  }
+
+  /** @type {Type.Store['read']} */
+  read(read) {
+    return this.store.read(read)
+  }
+  /** @type {Type.Store['write']} */
+  write(write) {
+    return this.store.write(write)
   }
 }
 
@@ -80,29 +84,28 @@ class Revision {
  * @param {Type.Store} tree
  */
 export function* open(tree) {
-  return new Database(tree)
+  return new DataSource(tree)
 }
 
 /**
- * Returns current revision of the database.
- *
- * @param {Database} db
+ * @template {API.Selector} Select
+ * @param {object} source
+ * @param {Type.Store} source.store
+ * @param {API.Query<Select>} query
  */
-export const status = (db) =>
-  db.store.read(function* (reader) {
-    const root = yield* reader.getRoot()
-    return new Revision(root)
-  })
+export function* query({ store }, query) {
+  return yield* DB.query(new DataSource(store), query)
+}
 
 /**
  * Closes the database instance. This is required to release filesystem lock
  * when using LMDB.
  *
- * @param {Database} db
+ * @param {object} source
+ * @param {Type.Store} source.store
  */
-export function* close(db) {
-  yield* db.store.close()
-  return {}
+export function* close({ store }) {
+  return yield* store.close()
 }
 
 /**
@@ -110,12 +113,13 @@ export function* close(db) {
  * may include entity, attribute, and value or any combination of them. Will
  * return all the datums that match the selector.
  *
- * @param {Database} db
+ * @param {object} source
+ * @param {Type.Store} source.store
  * @param {API.FactsSelector} [selector]
  * @returns {API.Task<API.Datum[], Error>}
  */
-export const scan = (db, { entity, attribute, value } = {}) =>
-  db.store.read((reader) => iterate(reader, { entity, attribute, value }))
+export const scan = ({ store }, { entity, attribute, value } = {}) =>
+  store.read((reader) => iterate(reader, { entity, attribute, value }))
 
 /**
  * @param {Type.AwaitIterable<Type.Entry>} entries
@@ -295,12 +299,13 @@ export const toSearchKey = ([index, group, subgroup, member]) => {
  * @property {Type.Transaction} transaction
  *
  *
- * @param {Database} db
+ * @param {object} source
+ * @param {Type.Store} source.store
  * @param {Type.Transaction} changes
  * @returns {API.Task<Commit, Error>}
  */
-export const transact = (db, changes) =>
-  db.store.write(function* (writer) {
+export const transact = ({ store }, changes) =>
+  store.write(function* (writer) {
     const root = yield* writer.getRoot()
     const hash = root.hash
     const time = Date.now()
@@ -342,7 +347,7 @@ export const transact = (db, changes) =>
 /**
  * Writes a fact into a database.
  *
- * @param {Type.Writer} writer
+ * @param {Type.StoreWriter} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
@@ -355,7 +360,7 @@ export function* assert(writer, fact, cause) {
 }
 
 /**
- * @param {Type.Writer} writer
+ * @param {Type.StoreWriter} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
@@ -366,7 +371,7 @@ export function* retract(writer, fact, cause) {
 }
 
 /**
- * @param {Type.Editor} writer
+ * @param {Type.StoreEditor} writer
  * @param {API.Fact} fact
  * @param {Reference.Reference<Change>} cause
  */
@@ -380,7 +385,7 @@ export function* upsert(writer, fact, cause) {
 }
 
 /**
- * @param {Type.Reader} reader
+ * @param {Type.StoreReader} reader
  * @param {API.FactsSelector} [selector]
  */
 export const iterate = (reader, { entity, attribute, value } = {}) => {

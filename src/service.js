@@ -24,33 +24,30 @@ const CORS = {
  *
  * @param {object} source
  * @param {Sync.Service} [source.sync]
- * @param {Replica.DataStore} source.data
+ * @param {Replica.DataSource} source.data
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
  */
 export const open = function* ({ data, blobs, sync }) {
-  const replica = yield* Replica.open({ local: { store: data } })
-  const revision = yield* data.status()
+  const replica = yield* Replica.open({ local: { source: data } })
 
-  return new Service(replica, sync, data, blobs, revision)
+  return new Service(replica, sync, data, blobs)
 }
 
 export class Service {
   /**
-   * @param {Replica.Revision} revision
    * @param {Replica.Replica} replica
    * @param {Sync.Service|undefined} sync
-   * @param {Replica.DataStore} data
+   * @param {Replica.DataSource} data
    * @param {Replica.BlobStore} blobs
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
    *
    */
-  constructor(replica, sync, data, blobs, revision, subscriptions = new Map()) {
+  constructor(replica, sync, data, blobs, subscriptions = new Map()) {
     this.replica = replica
     this.sync = sync
     this.data = data
     this.blobs = blobs
-    this.revision = revision
     this.subscriptions = subscriptions
 
     this.fetch = this.fetch.bind(this)
@@ -110,9 +107,7 @@ export const fetch = function* (self, request) {
  * @param {Replica.Transaction} changes
  */
 export function* transact(self, changes) {
-  const commit = yield* self.replica.transact(changes)
-  self.revision = commit.after
-  return commit
+  return yield* self.replica.transact(changes)
 }
 
 /**
@@ -324,13 +319,12 @@ export function* importBlob(self, request) {
 
 /**
  * @typedef {object} Self
- * @property {Replica.Revision} revision - Current revision of the store.
  * @property {DB.API.Querier} data - The underlying data store.
  * @property {Replica.BlobReader} blobs
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
- * @typedef {Self & {sync?: Sync.Service, data: Replica.DataStore, blobs: Replica.BlobStore}} MutableSelf
+ * @typedef {Self & {sync?: Sync.Service, data: Replica.DataSource, blobs: Replica.BlobStore}} MutableSelf
  */
 
 /**
@@ -390,13 +384,13 @@ export function* query(self, id) {
 export const head = function* (self, request) {
   const url = new URL(request.url)
   try {
-    const id = Reference.fromString(url.pathname.slice(1))
+    const entity = Reference.fromString(url.pathname.slice(1))
     const { type, size } = Replica.$
     const [match] = yield* DB.query(self.data, {
       select: { type, size },
       where: [
-        { Case: [id, 'content/type', type] },
-        { Case: [id, 'content/length', size] },
+        { Case: [entity, 'content/type', type] },
+        { Case: [entity, 'content/length', size] },
       ],
     })
 
@@ -411,7 +405,7 @@ export const head = function* (self, request) {
       })
     } else {
       return yield* error(
-        { message: `Content ${id} not found` },
+        { message: `Content ${entity} not found` },
         { status: 404 }
       )
     }

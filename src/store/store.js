@@ -34,7 +34,8 @@ export class Sync {
   }
 
   *close() {
-    return yield* Task.wait(this.tree.close())
+    yield* Task.wait(this.tree.close())
+    return {}
   }
 }
 
@@ -70,18 +71,18 @@ export class SyncReader {
     return this.transaction.get(key)
   }
 
-  /** @type {Type.Reader['entries']}  */
+  /** @type {Type.StoreReader['entries']}  */
   entries(lowerBound, upperBound, options) {
     return this.transaction.entries(lowerBound, upperBound, options)
   }
-  /** @type {Type.Reader['nodes']}  */
+  /** @type {Type.StoreReader['nodes']}  */
   nodes(level, lowerBound, upperBound, options) {
     return this.transaction.nodes(level, lowerBound, upperBound, options)
   }
 }
 
 /**
- * @implements {Type.Editor}
+ * @implements {Type.StoreEditor}
  */
 export class SyncWriter extends SyncReader {
   /**
@@ -91,11 +92,11 @@ export class SyncWriter extends SyncReader {
     super(transaction)
     this.transaction = transaction
   }
-  /** @type {Type.Writer['delete']} */
+  /** @type {Type.StoreWriter['delete']} */
   *delete(key) {
     return this.transaction.delete(key)
   }
-  /** @type {Type.Writer['set']} */
+  /** @type {Type.StoreWriter['set']} */
   *set(key, value) {
     return this.transaction.set(key, value)
   }
@@ -122,7 +123,7 @@ export class SyncWriter extends SyncReader {
  */
 export class Async {
   /**
-   * @param {Type.AsyncSource} source
+   * @param {Type.AsyncReader} source
    */
   constructor(source) {
     this.source = source
@@ -144,17 +145,18 @@ export class Async {
 
   *close() {
     if (this.source.close) {
-      return yield* Task.wait(this.source.close())
+      yield* Task.wait(this.source.close())
     }
+    return {}
   }
 }
 
 /**
- * @implements {Type.Reader}
+ * @implements {Type.StoreReader}
  */
 class AsyncReader {
   /**
-   * @param {Type.AsyncSource} source
+   * @param {Type.AsyncReader} source
    */
   constructor(source) {
     this.source = source
@@ -206,7 +208,7 @@ class AsyncReader {
 }
 
 /**
- * @implements {Type.Writer}
+ * @implements {Type.StoreEditor}
  */
 class AsyncWriter extends AsyncReader {
   /**

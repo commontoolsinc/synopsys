@@ -2,8 +2,9 @@ import { refer } from 'merkle-reference'
 import * as Type from './type.js'
 import { Task, transact, query } from 'datalogia'
 import { differentiate } from '../differential.js'
-import * as Remote from '../source/remote.js'
-import * as Local from '../source/local.js'
+import * as Remote from '../connection/remote.js'
+import * as Local from '../connection/local.js'
+import * as Source from '../store/okra.js'
 
 export { transact, query }
 
@@ -21,17 +22,17 @@ export const connect = (source) =>
   source.local ? Local.open(source.local) : Remote.open(source.remote)
 
 /**
- * @typedef {object} DataSource
- * @property {Type.Database} ephemeral
- * @property {Type.Database} durable
+ * @typedef {object} Source
+ * @property {Type.DataSource} ephemeral
+ * @property {Type.DataSource} durable
  */
 
 /**
  * Opens a hybrid database instance.
  *
- * @param {DataSource} source
+ * @param {Source} source
  */
-export const from = (source) => new HybdridDatabase(source)
+export const from = (source) => new HybridSource(source)
 
 /**
  * @param {Type.Instruction} instruction
@@ -46,7 +47,7 @@ const isEphemeral = ({ Assert, Retract, Upsert }) => {
  * @param {string} root
  * @returns {Type.Instruction}
  */
-const updateDurableRoot = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
+const updateDurable = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
 
 /**
  * @typedef {Type.Variant<{
@@ -56,21 +57,16 @@ const updateDurableRoot = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
  */
 
 /**
- * @implements {Type.Database}
+ * @implements {Type.DataSource}
  */
-class HybdridDatabase {
-  /** @type {Type.Revision|null} */
-  #revision = null
+class HybridSource {
   /**
-   * @param {DataSource} source
+   * @param {Source} source
    */
   constructor(source) {
     this.source = source
-    this.writable = Task.wait({})
   }
-  get store() {
-    return this.source.durable.store
-  }
+
   /**
    * @param {Type.FactsSelector} selector
    */
@@ -97,13 +93,12 @@ class HybdridDatabase {
     }
 
     const commit = yield* this.source.ephemeral.transact(ephemeral)
-    this.#revision = commit.after
 
     // If we have changes to durable store we need to schedule a write
     // after all prior writes are done. This ensures that the durable
     // store is not changing concurrently which could lead to problems.
     if (durable.length) {
-      const invocation = Task.perform(HybdridDatabase.transact(this, durable))
+      const invocation = Task.perform(HybridSource.transact(this, durable))
       this.writable = Task.result(invocation)
       return yield* invocation
     } else {
@@ -112,7 +107,7 @@ class HybdridDatabase {
   }
 
   /**
-   * @param {HybdridDatabase} self
+   * @param {HybridSource} self
    * @param {Type.Transaction} changes
    */
   static *transact(self, changes) {
@@ -120,23 +115,9 @@ class HybdridDatabase {
     const { after } = yield* self.source.durable.transact(changes)
     // Capture upstream state so we can capture it in the merkle root
 
-    const commit = yield* self.source.ephemeral.transact([
-      updateDurableRoot(after.id),
-    ])
-    self.#revision = commit.after
-
-    return commit
+    return yield* self.source.ephemeral.transact([updateDurable(after.id)])
   }
-  *status() {
-    if (this.#revision == null) {
-      const revision = yield* this.source.durable.status()
-      if (this.#revision == null) {
-        yield* this.transact([updateDurableRoot(revision.id)])
-      }
-    }
 
-    return yield* this.source.ephemeral.status()
-  }
   *close() {
     const ephemeral = yield* Task.fork(this.source.ephemeral.close())
     const durable = yield* Task.fork(this.source.durable.close())
@@ -153,19 +134,19 @@ class HybdridDatabase {
    * @param {Type.SynchronizationSource} source
    */
   *merge(source) {
-    const invocation = Task.perform(HybdridDatabase.merge(this, source))
+    const invocation = Task.perform(HybridSource.merge(this, source))
     this.writable = Task.result(invocation)
     return yield* invocation
   }
 
   /**
    *
-   * @param {HybdridDatabase} self
+   * @param {HybridSource} self
    * @param {Type.SynchronizationSource} source
    */
   static *merge(self, source) {
     yield* self.writable
-    return yield* self.source.durable.store.write(function* (writer) {
+    return yield* self.source.durable.write(function* (writer) {
       const delta = yield* differentiate(
         writer,
         source,

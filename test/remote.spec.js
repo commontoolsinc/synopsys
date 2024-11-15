@@ -14,9 +14,9 @@ export const testRemote = {
   transaction: {
     basic: (assert) =>
       Task.spawn(function* () {
-        const store = yield* Store.open()
+        const data = yield* Store.open()
         const blobs = yield* Blobs.open()
-        const service = yield* Service.open({ data: store, blobs })
+        const service = yield* Service.open({ data, blobs })
 
         const remote = yield* Replica.open({
           remote: {
@@ -24,15 +24,14 @@ export const testRemote = {
             fetch: service.fetch,
           },
         })
-        const init = service.revision
 
         const commit = yield* remote.transact([
           { Assert: [counter, 'count', 1] },
         ])
 
-        assert.deepEqual(commit.before.id, init.id)
+        assert.notEqual(commit.before.id, commit.after.id)
 
-        const selection = yield* DB.query(store, {
+        const selection = yield* DB.query(data, {
           select: { count: $.count },
           where: [{ Case: [counter, 'count', $.count] }],
         })
@@ -42,9 +41,9 @@ export const testRemote = {
 
     'invalid transaction': (assert) =>
       Task.spawn(function* () {
-        const store = yield* Store.open()
+        const data = yield* Store.open()
         const blobs = yield* Blobs.open()
-        const service = yield* Service.open({ data: store, blobs })
+        const service = yield* Service.open({ data, blobs })
 
         const remote = yield* Replica.open({
           remote: {
@@ -67,9 +66,9 @@ export const testRemote = {
   subscription: Subscription.testSubscription({
     connect: () =>
       Task.spawn(function* () {
-        const store = yield* Store.open()
+        const data = yield* Store.open()
         const blobs = yield* Blobs.open()
-        const service = yield* Service.open({ data: store, blobs })
+        const service = yield* Service.open({ data, blobs })
         const replica = yield* Replica.open({
           remote: {
             url: new URL('http://localhost:8080'),

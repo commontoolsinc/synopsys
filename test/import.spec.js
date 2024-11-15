@@ -8,10 +8,10 @@ import { query } from 'datalogia'
 export const testImport = {
   'test import object': (assert) =>
     Task.spawn(function* () {
-      const store = yield* Memory.open()
-      const replica = yield* Replica.open({ local: { store } })
+      const source = yield* Memory.open()
+      const replica = yield* Replica.open({ local: { source } })
 
-      const source = {
+      const data = {
         name: 'synopsys',
         keywords: ['datalog', 'db', 'datomic', 'graph'],
         null: null,
@@ -32,8 +32,8 @@ export const testImport = {
         types: [{ './src/lib.js': './dist/lib.d.ts' }],
       }
 
-      const entity = refer(source)
-      yield* Replica.transact(replica, [{ Import: source }])
+      const entity = refer(data)
+      yield* Replica.transact(replica, [{ Import: data }])
 
       const {
         name,
@@ -48,7 +48,7 @@ export const testImport = {
 
       // TODO: Update test when grouping issue is fixed
       // @see https://github.com/Gozala/datalogia/issues/50
-      const [groupKeywords, ...rest] = yield* query(store, {
+      const [groupKeywords, ...rest] = yield* query(source, {
         select: {
           name,
           keywords: [{ at, keyword }],
@@ -74,7 +74,7 @@ export const testImport = {
         .sort((left, right) => left.at.localeCompare(right.at))
         .map(({ keyword }) => keyword)
 
-      assert.deepEqual(foundKeywords, source.keywords)
+      assert.deepEqual(foundKeywords, data.keywords)
       assert.deepEqual(
         groupKeywords.dependencies
           .map(({ name, version }) => `${name}@${version}`)
@@ -101,8 +101,8 @@ export const testImport = {
           types: null,
         },
         {
-          ...source,
-          score: Number(source.score),
+          ...data,
+          score: Number(data.score),
           keywords: null,
           dependencies: null,
           types: null,

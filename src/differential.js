@@ -11,7 +11,7 @@ import { sync } from '@canvas-js/okra'
 /**
  * Calculates the changes between local and remote databases.
  *
- * @param {Type.TreeReader} local
+ * @param {Type.StoreReader} local
  * @param {Type.PullSource} remote
  * @param {(key: Uint8Array, source: Uint8Array, target: Uint8Array) => Task.Task<Uint8Array>} merge
  */
@@ -19,8 +19,8 @@ export function* differentiate(local, remote, merge) {
   /** @type {Delta} */
   const changes = { local: [], remote: [] }
   /** @type {Type.ReadOnlyTransaction} */
-  const target = /** @type {any} */ (new SyncTarget(local))
-  const source = new SyncSource(remote)
+  const target = /** @type {any} */ (new PullTarget(local))
+  const source = new PullSource(remote)
   const delta = sync(source, target)
   while (true) {
     const next = yield* Task.wait(delta.next())
@@ -42,7 +42,7 @@ export function* differentiate(local, remote, merge) {
   return changes
 }
 
-class SyncSource {
+class PullSource {
   /**
    * @param {Type.PullSource} source
    */
@@ -68,16 +68,16 @@ class SyncSource {
   }
 }
 
-class SyncTarget extends SyncSource {
+class PullTarget extends PullSource {
   /**
    *
-   * @param {Type.TreeReader} reader
+   * @param {Type.StoreReader} reader
    */
   constructor(reader) {
     super(reader)
     this.reader = reader
   }
-  /** @type {Type.TreeReader['nodes']} */
+  /** @type {Type.StoreReader['nodes']} */
   nodes(level, lowerBound, upperBound, options) {
     return this.reader.nodes(level, lowerBound, upperBound, options)
   }
