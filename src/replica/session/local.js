@@ -65,7 +65,7 @@ export function* transact(session, changes) {
  * Subscribes to the given query.
  *
  * @template {DB.Selector} [Select=DB.API.Selector]
- * @param {Local} session
+ * @param {LocalSession} session
  * @param {DB.Query<Select>} query
  */
 export function* subscribe(session, query) {
@@ -88,7 +88,7 @@ export function* subscribe(session, query) {
  * @template {DB.Selector} [Select=DB.API.Selector]
  * @extends {ReadableStream<Type.Selection<Select>[]>}
  */
-class LocalSubscription extends ReadableStream {
+export class LocalSubscription extends ReadableStream {
   /**
    * @param {undefined} source
    * @param {undefined} strategy

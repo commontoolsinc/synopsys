@@ -5,7 +5,9 @@ import { differentiate } from '../differential.js'
 import * as Remote from '../connection/remote.js'
 import * as Local from '../connection/local.js'
 import * as Source from './store.js'
-
+import { channel } from '../replica/sync.js'
+import { subscribe } from '../replica/session/local.js'
+import * as Query from '../replica/query.js'
 export { transact, query }
 
 /**
@@ -62,7 +64,7 @@ const updateDurable = (root) => ({ Upsert: [refer({}), `~/durable`, root] })
  */
 
 /**
- * @implements {Type.DataSource}
+ * @implements {Type.DataBase}
  */
 class HybridSource {
   /**
@@ -70,13 +72,21 @@ class HybridSource {
    * @param {Type.DataSource} source.ephemeral
    * @param {Type.DataSource} source.durable
    * @param {Type.Store} source.store
+   * @param {Map<string, Type.Subscription>} [source.subscriptions]
    */
-  constructor({ ephemeral, durable, store }) {
+  constructor({ ephemeral, durable, store, subscriptions = new Map() }) {
     this.ephemeral = ephemeral
     this.durable = durable
     this.store = store
 
+    this.transaction = channel()
+    this.subscriptions = subscriptions
+
     this.writable = Task.wait({})
+  }
+
+  get source() {
+    return this
   }
 
   /**
@@ -89,6 +99,13 @@ class HybridSource {
     return [...(yield* ephemeral), ...(yield* durable)]
   }
 
+  /**
+   * @template {Type.Selector} [Select=Type.Selector]
+   * @param {Type.Query<Select>} source
+   */
+  query(source) {
+    return query(this, source)
+  }
   /**
    * @param {Type.Transaction} changes
    */
@@ -112,8 +129,11 @@ class HybridSource {
     if (durable.length) {
       const invocation = Task.perform(HybridSource.transact(this, durable))
       this.writable = Task.result(invocation)
-      return yield* invocation
+      const commit = yield* invocation
+      this.transaction.write(commit)
+      return commit
     } else {
+      this.transaction.write(commit)
       return commit
     }
   }
@@ -168,10 +188,36 @@ class HybridSource {
         }
       )
 
-      const local = yield* writer.integrate(delta.local)
-      const remote = yield* source.integrate(delta.remote)
+      let result = {}
+      if (delta.local.length > 0) {
+        result.local = yield* writer.integrate(delta.local)
+        self.transaction.write(result.local)
+      }
 
-      return { local, remote }
+      if (delta.remote.length > 0) {
+        result.remote = yield* writer.integrate(delta.remote)
+      }
+
+      return result
     })
+  }
+
+  /**
+   * @template {Type.Selector} Select
+   * @param {Type.Query<Select>} query
+   */
+  *subscribe(query) {
+    const bytes = yield* Query.toBytes(query)
+    const key = refer(bytes).toString()
+    const subscription = this.subscriptions.get(key)
+    if (!subscription) {
+      const subscription = yield* subscribe(this, query)
+      this.subscriptions.set(key, subscription)
+      // Remove the subscription when it closes.
+      subscription.closed.then(() => this.subscriptions.delete(key))
+      return subscription
+    }
+
+    return /** @type {Type.Subscription<Select>} */ (subscription)
   }
 }
