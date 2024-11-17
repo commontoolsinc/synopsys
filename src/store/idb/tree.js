@@ -4,37 +4,37 @@ import * as Type from '../../replica/type.js'
 import { Task } from 'datalogia'
 import { Reader } from './reader.js'
 import { Writer } from './writer.js'
+import * as Queue from './queue.js'
 
 export class Tree {
-  /**
-   * Creates a new Tree instance from entries.
-   * @param {Partial<Okra.Metadata>} init - Initial metadata.
-   * @param {AsyncIterable<[Uint8Array, Okra.Leaf]>} entries - Entries to initialize the tree with.
-   * @returns {Promise<Tree>} A promise that resolves to a new Tree.
-   */
-  static async fromEntries(init, entries) {
-    const tree = new Tree(init)
+  // /**
+  //  * Creates a new Tree instance from entries.
+  //  * @param {Partial<Okra.Metadata>} init - Initial metadata.
+  //  * @param {AsyncIterable<[Uint8Array, Okra.Leaf]>} entries - Entries to initialize the tree with.
+  //  * @returns {Promise<Tree>} A promise that resolves to a new Tree.
+  //  */
+  // static async fromEntries(init, entries) {
+  //   const tree = new Tree(init)
 
-    let success = false
-    await tree.#queue.add(async () => {
-      const store = new Store(tree.metadata, tree.#tree)
-      await Builder.fromEntriesAsync(store, entries)
-      tree.#tree = store.snapshot
-      success = true
-    })
+  //   let success = false
+  //   await tree.#queue.add(async () => {
+  //     const store = new Store(tree.metadata, tree.#tree)
+  //     await Builder.fromEntriesAsync(store, entries)
+  //     tree.#tree = store.snapshot
+  //     success = true
+  //   })
 
-    if (!success) {
-      throw new Error('failed to commit transaction')
-    }
+  //   if (!success) {
+  //     throw new Error('failed to commit transaction')
+  //   }
 
-    return tree
-  }
+  //   return tree
+  // }
 
   /** @type {Okra.Metadata} */
   metadata
 
-  /** @type {PQueue} */
-  #queue = new PQueue({ concurrency: 1 })
+  #queue = Queue.new()
 
   /** @type {boolean} */
   #open = true
@@ -78,9 +78,9 @@ export class Tree {
    */
   *close() {
     this.#open = false
-    await this.#queue.onIdle()
-
-    return {}
+    return yield* this.#queue.spawn(function* () {
+      return {}
+    })
   }
 
   /**
@@ -101,8 +101,12 @@ export class Tree {
    * @param {(reader: Type.StoreReader) => Task.Task<T, Error>} job - The function to execute in a read transaction.
    * @returns {Task.Task<T, Error>} The result of the read operation.
    */
-  read(job) {
-    return job(new Reader(this.store))
+  *read(job) {
+    if (this.#open === false) {
+      throw new Error('Tree is closed')
+    }
+
+    return yield* job(new Reader(this.store))
   }
 
   /**
@@ -112,7 +116,13 @@ export class Tree {
    * @returns {Task.Task<T, Error>} The result of the write operation.
    */
   write(job) {
-    // TODO: queue write operations
-    return job(new Writer(this.store))
+    if (this.#open === false) {
+      throw new Error(`Tree is closed`)
+    }
+
+    const { store } = this
+    return this.#queue.spawn(function* () {
+      return yield* job(new Writer(store))
+    })
   }
 }
