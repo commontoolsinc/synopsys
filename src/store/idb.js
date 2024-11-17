@@ -71,6 +71,8 @@ const fromURL = (url) => {
     ...treeOptions,
   }
 }
+
+const Tree = IDBTree.prototype.constructor
 // @ts-expect-error
 class FixedIDBTree extends IDBTree {
   /**
@@ -88,13 +90,35 @@ class FixedIDBTree extends IDBTree {
   }
   /** @type {IDBTree['entries']} */
   async *entries(lowerBound, upperBound, options) {
-    yield* await this.store.read(async () => {
-      const entries = super.entries(lowerBound, upperBound, options)
-      const members = []
-      for await (const entry of entries) {
-        members.push(entry)
+    if (this.store.txn === null) {
+      this.store.txn = this.store.db.transaction(
+        this.store.storeName,
+        'readonly'
+      )
+      try {
+        yield* super.entries(lowerBound, upperBound, options)
+      } finally {
+        this.store.txn = null
       }
-      return members.values()
-    })
+    } else {
+      yield* super.entries(lowerBound, upperBound, options)
+    }
+  }
+
+  /** @type {IDBTree['nodes']} */
+  async *nodes(level, lowerBound, upperBound, options) {
+    if (this.store.txn === null) {
+      this.store.txn = this.store.db.transaction(
+        this.store.storeName,
+        'readonly'
+      )
+      try {
+        yield* super.nodes(level, lowerBound, upperBound, options)
+      } finally {
+        this.store.txn = null
+      }
+    } else {
+      yield* super.nodes(level, lowerBound, upperBound, options)
+    }
   }
 }
