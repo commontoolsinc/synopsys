@@ -7,6 +7,7 @@ import type {
   Awaitable,
   ReadOnlyTransaction,
   ReadWriteTransaction,
+  Metadata,
 } from '@canvas-js/okra'
 
 import type {
@@ -36,12 +37,13 @@ export type {
 }
 
 export interface AwaitIterable<T> {
+  poll(): Task<IteratorResult<T>, Error>
   next(): Awaitable<IteratorResult<T>>
 }
 
 export interface PullSource {
   getRoot(): Task<Node, Error>
-  getNode(level: number, key: Uint8Array): Task<Node | null, Error>
+  getNode(level: number, key: Key): Task<Node | null, Error>
 
   getChildren(level: number, key: Uint8Array): Task<Node[], Error>
 }
@@ -53,6 +55,13 @@ export interface PullTarget extends PullSource {
     upperBound?: Bound<Key> | null,
     options?: { reverse?: boolean }
   ): AwaitIterable<Node>
+}
+
+export interface NodeStore extends PullSource, PullTarget {
+  readonly metadata: Metadata
+
+  setNode(node: Node): Task<void, Error>
+  deleteNode(level: number, key: Key): Task<void, Error>
 }
 
 /**
@@ -67,14 +76,14 @@ export interface StoreReader extends PullSource, PullTarget {
     }
   ): AwaitIterable<Entry>
 
-  get(key: Uint8Array): Task<Uint8Array | null>
+  get(key: Uint8Array): Task<Uint8Array | null, Error>
 }
 
 export interface StoreWriter {
-  delete(key: Uint8Array): Task<void>
-  set(key: Uint8Array, value: Uint8Array): Task<void>
+  delete(key: Uint8Array): Task<{}, Error>
+  set(key: Uint8Array, value: Uint8Array): Task<{}, Error>
 
-  integrate(changes: Change[]): Task<Node>
+  integrate(changes: Change[]): Task<Node, Error>
 }
 
 export interface StoreEditor extends StoreReader, StoreWriter {}
