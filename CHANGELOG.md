@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/commontoolsinc/synopsys/compare/v4.0.1...v4.1.0) (2024-11-17)
+
+
+### Miscellaneous Chores
+
+* release 4.1.0 ([8e6e14c](https://github.com/commontoolsinc/synopsys/commit/8e6e14c018b93c47123dbdab48c2ac324df852f1))
+
 ## [4.0.1](https://github.com/commontoolsinc/synopsys/compare/v4.0.0...v4.0.1) (2024-11-17)
 
 
