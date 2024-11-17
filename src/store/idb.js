@@ -103,7 +103,9 @@ class IDB {
     return yield* /** @type {any} */ (task)
   }
 
-  *close() {}
+  *close() {
+    return {}
+  }
 }
 
 class IDBReader {
