@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/commontoolsinc/synopsys/compare/v4.0.0...v4.0.1) (2024-11-17)
+
+
+### Bug Fixes
+
+* idb overrides ([5943d54](https://github.com/commontoolsinc/synopsys/commit/5943d54c32c5c592da5a1de6a066e3c733ff404d))
+* idb overrides ([#61](https://github.com/commontoolsinc/synopsys/issues/61)) ([b7c5272](https://github.com/commontoolsinc/synopsys/commit/b7c52723e994cb95d5a5e911a895ecddd124ad62))
+
 ## [4.0.0](https://github.com/commontoolsinc/synopsys/compare/v3.0.0...v4.0.0) (2024-11-15)
 
 
