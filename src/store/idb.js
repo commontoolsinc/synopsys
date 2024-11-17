@@ -1,7 +1,6 @@
-import { IDBTree, IDBStore } from '@canvas-js/okra-idb'
-import * as IDB from 'idb'
+import { IDBTree } from '@canvas-js/okra-idb'
+import { openDB } from 'idb'
 import { Task } from 'datalogia'
-import { Async } from './store.js'
 import * as Type from './type.js'
 
 export * from '../source/store.js'
@@ -37,7 +36,7 @@ export const open = function* (source) {
   } = source?.idb ? source.idb : source?.url ? fromURL(source.url) : {}
 
   const idb = yield* Task.wait(
-    IDB.openDB(name, version, {
+    openDB(name, version, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store)
@@ -45,9 +44,9 @@ export const open = function* (source) {
       },
     })
   )
-  const okra = yield* Task.wait(FixedIDBTree.open(idb, store, tree))
+  const okra = yield* Task.wait(IDBTree.open(idb, store, tree))
 
-  return new Async(okra)
+  return new IDB(okra)
 }
 
 /**
@@ -72,53 +71,127 @@ const fromURL = (url) => {
   }
 }
 
-const Tree = IDBTree.prototype.constructor
-// @ts-expect-error
-class FixedIDBTree extends IDBTree {
+class IDB {
   /**
-   *
-   * @param {IDB.IDBPDatabase} db
-   * @param {string} storeName
-   * @param {Partial<Metadata>} options
+   * @param {IDBTree} tree
    */
-  static async open(db, storeName, options = {}) {
-    const store = new IDBStore(db, storeName)
-    // @ts-expect-error
-    const tree = new this(store, options)
-    await store.write(() => tree.initialize())
-    return /** @type {FixedIDBTree} */ (tree)
+  constructor(tree) {
+    this.tree = tree
   }
-  /** @type {IDBTree['entries']} */
-  async *entries(lowerBound, upperBound, options) {
-    if (this.store.txn === null) {
-      this.store.txn = this.store.db.transaction(
-        this.store.storeName,
-        'readonly'
-      )
-      try {
-        yield* super.entries(lowerBound, upperBound, options)
-      } finally {
-        this.store.txn = null
-      }
-    } else {
-      yield* super.entries(lowerBound, upperBound, options)
-    }
+  /**
+   * @type {Type.Store['read']}
+   */
+  *read(read) {
+    let task
+
+    this.tree.store.read(async () => {
+      task = read(new IDBReader(this.tree))
+    })
+
+    return yield* /** @type {any} */ (task)
   }
 
-  /** @type {IDBTree['nodes']} */
-  async *nodes(level, lowerBound, upperBound, options) {
-    if (this.store.txn === null) {
-      this.store.txn = this.store.db.transaction(
-        this.store.storeName,
-        'readonly'
-      )
-      try {
-        yield* super.nodes(level, lowerBound, upperBound, options)
-      } finally {
-        this.store.txn = null
+  /**
+   * @type {Type.Store['write']}
+   */
+  *write(write) {
+    let task
+    this.tree.store.write(async () => {
+      task = write(new IDBWriter(this.tree))
+    })
+
+    return yield* /** @type {any} */ (task)
+  }
+
+  *close() {
+    return {}
+  }
+}
+
+class IDBReader {
+  /**
+   * @param {IDBTree} tree
+   */
+  constructor(tree) {
+    this.tree = tree
+  }
+  *getRoot() {
+    const root = yield* Task.wait(this.tree.getRoot())
+    return root
+  }
+  /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getNode(level, key) {
+    const node = yield* Task.wait(this.tree.getNode(level, key))
+    return node
+  }
+  /**
+   * @param {number} level
+   * @param {Uint8Array} key
+   */
+  *getChildren(level, key) {
+    const children = yield* Task.wait(this.tree.getChildren(level, key))
+    return children
+  }
+  /**
+   * @param {Uint8Array} key
+   */
+  *get(key) {
+    const value = yield* Task.wait(this.tree.get(key))
+    return value
+  }
+  /**
+   * @param {Type.Bound<Uint8Array>|null} [lowerBound]
+   * @param {Type.Bound<Uint8Array>|null} [upperBound]
+   * @param {{reverse?: boolean}} [options]
+   */
+  entries(lowerBound, upperBound, options) {
+    return this.tree.entries(lowerBound, upperBound, options)
+  }
+  /**
+   * @param {number} level
+   * @param {Type.Bound<Type.Key>|null} [lowerBound]
+   * @param {Type.Bound<Type.Key>|null} [upperBound]
+   * @param {{reverse?: boolean}} [options]
+   */
+  nodes(level, lowerBound, upperBound, options) {
+    return this.tree.nodes(level, lowerBound, upperBound, options)
+  }
+}
+
+class IDBWriter extends IDBReader {
+  /**
+   * @param {Uint8Array} key
+   */
+  *delete(key) {
+    return yield* Task.wait(this.tree.delete(key))
+  }
+
+  /**
+   * @param {Uint8Array} key
+   * @param {Uint8Array} value
+   */
+  *set(key, value) {
+    return yield* Task.wait(this.tree.set(key, value))
+  }
+
+  /**
+   *
+   * @param {Type.Change[]} changes
+   */
+  *integrate(changes) {
+    const promises = []
+    for (const [key, value] of changes) {
+      if (value) {
+        promises.push(this.tree.set(key, value))
+      } else {
+        promises.push(this.tree.delete(key))
       }
-    } else {
-      yield* super.nodes(level, lowerBound, upperBound, options)
     }
+    yield* Task.wait(Promise.all(promises))
+
+    return yield* this.getRoot()
   }
 }

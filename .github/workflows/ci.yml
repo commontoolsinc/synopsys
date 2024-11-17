@@ -66,28 +66,28 @@ jobs:
       - run: pnpm install
       - name: Test
         run: pnpm run test:node
-  # test-web:
-  #   name: Test Web
-  #   runs-on: ubuntu-latest
+  test-web:
+    name: Test Web
+    runs-on: ubuntu-latest
 
-  #   strategy:
-  #     matrix:
-  #       node-version:
-  #         - 18
+    strategy:
+      matrix:
+        node-version:
+          - 18
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v2
-  #     - name: Install pnpm
-  #       uses: pnpm/action-setup@v2
-  #       with:
-  #         version: 'latest'
-  #     - name: Setup node ${{ matrix.node-version }}
-  #       uses: actions/setup-node@v2
-  #       with:
-  #         node-version: ${{ matrix.node-version }}
-  #         cache: 'pnpm'
-  #     - name: Install dependencies
-  #       run: pnpm install
-  #     - name: Test
-  #       run: pnpm run test:web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 'latest'
+      - name: Setup node ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Test
+        run: pnpm run test:web
