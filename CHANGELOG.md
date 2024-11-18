@@ -1,5 +1,22 @@
 # Changelog
 
+## [5.0.0](https://github.com/commontoolsinc/synopsys/compare/v4.1.0...v5.0.0) (2024-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rewrite IDB store ([#65](https://github.com/commontoolsinc/synopsys/issues/65))
+
+### Features
+
+* Rewrite IDB store ([#65](https://github.com/commontoolsinc/synopsys/issues/65)) ([f0a95dc](https://github.com/commontoolsinc/synopsys/commit/f0a95dce3b3197b78e5bbed9a2536148ec671b28))
+* upgrade implementation ([3e6f35b](https://github.com/commontoolsinc/synopsys/commit/3e6f35baab3e758af99f9efab052cf2ef7659ed5))
+
+
+### Bug Fixes
+
+* failing test ([48f264d](https://github.com/commontoolsinc/synopsys/commit/48f264d3f4ea6a940e5a477233ea0ffe18c098ef))
+
 ## [4.1.0](https://github.com/commontoolsinc/synopsys/compare/v4.0.1...v4.1.0) (2024-11-17)
 
 
