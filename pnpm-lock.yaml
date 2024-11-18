@@ -9,17 +9,17 @@ importers:
   .:
     dependencies:
       '@canvas-js/okra':
-        specifier: 0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@canvas-js/okra-idb':
         specifier: ^0.3.0
         version: 0.3.0(idb@8.0.0)
       '@canvas-js/okra-lmdb':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: ^0.2.1
+        version: 0.2.1
       '@canvas-js/okra-memory':
-        specifier: 0.4.5
-        version: 0.4.5
+        specifier: ^0.4.6
+        version: 0.4.6
       '@ipld/dag-cbor':
         specifier: ^9.2.1
         version: 9.2.1
@@ -44,6 +44,9 @@ importers:
       multiformats:
         specifier: ^13.3.0
         version: 13.3.0
+      uint8arrays:
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@web-std/fetch':
         specifier: 4.2.1
@@ -81,18 +84,18 @@ packages:
     peerDependencies:
       idb: ^8.0.0
 
-  '@canvas-js/okra-lmdb@0.2.0':
-    resolution: {integrity: sha512-nSBW8860EQV3IjR4K3n3zIrpFdIRZausMnVK8ZMHK9uAbf9cjJpwASogBYYI2BMdJ1FqODHZZQbFxgDFLnwxzw==}
+  '@canvas-js/okra-lmdb@0.2.1':
+    resolution: {integrity: sha512-A/bncCqtTSVKvNPs9NnkEC/FGtc7WtHyvgjvmRnc1vCAT3fMF1Gv3UnuE9vygA07NZ7gb7HEdU7S725RQ9SccQ==}
     engines: {node: '>=18'}
 
-  '@canvas-js/okra-memory@0.4.5':
-    resolution: {integrity: sha512-RGLUvCzZh9ejWl2uxFHtrkceAs1mGOq52b7U/Wzbmhp8lxr4L8gKldwoGIcps9J//9afUD7/vFj/jLnrHXz59A==}
+  '@canvas-js/okra-memory@0.4.6':
+    resolution: {integrity: sha512-IZA5zIwjqUCTT6FntXzM7vuIdun2C++FidJW5Pc48mSpAlNMwNgkQf7GSSMYF0SCB+p7niAT81ga/Yjs0wI10g==}
 
   '@canvas-js/okra@0.3.0':
     resolution: {integrity: sha512-GCF1pr1BbrammUzQlnXf4jfsWo8dRYzo4+lIFfTJaWeL8C+6eRZW/dOUS53bdtbr9HSKJXb9S0qlYijWayRskA==}
 
-  '@canvas-js/okra@0.4.5':
-    resolution: {integrity: sha512-5c74kB/skTF+JGo/H49Eej/lu/bg98Q3M5uoRhJYbzRJxLwJ31sYsc4E0k75n1XUtv85Wrgtf4Zn+3D9J3iDhA==}
+  '@canvas-js/okra@0.4.6':
+    resolution: {integrity: sha512-UrKrTLhtRX1CR/61Yx6Pwq70az8Xn0RJTEEBqYH6ZtBp8lBwsdDWY5t6PxHkAkIkiEoer3HxmyUVTRLoE2N+Dg==}
 
   '@esbuild/aix-ppc64@0.23.0':
     resolution: {integrity: sha512-3sG8Zwa5fMcA9bgqB8AfWPQ+HFke6uD3h1s3RIwUNK8EG7a4buxvuFTs3j1IMs2NXAk9F30C/FF4vxRgQCcmoQ==}
@@ -1223,8 +1226,8 @@ packages:
     resolution: {integrity: sha512-kiGUalWN+rgBJ/1OHZsBtU4rXZOfj/7rKQxULKlIzwzQSvMJUUNgPwJEEh7gU6xEVxC0ahoOBvN2YI8GH6FNgA==}
     engines: {node: '>=10.12.0'}
 
-  weald@1.0.2:
-    resolution: {integrity: sha512-iG5cIuBwsPe1ZcoGGd4X6QYlepU1vLr4l4oWpzQWqeJPSo9B8bxxyE6xlnj3TCmThtha7gyVL+uuZgUFkPyfDg==}
+  weald@1.0.4:
+    resolution: {integrity: sha512-+kYTuHonJBwmFhP1Z4YQK/dGi3jAnJGCYhyODFpHK73rbxnp9lnZQj7a2m+WVgn8fXr5bJaxUpF6l8qZpPeNWQ==}
 
   web-encoding@1.1.5:
     resolution: {integrity: sha512-HYLeVCdJ0+lBYV2FvNZmv3HJ2Nt0QYXqZojk3d9FJOLkwnuhzM9tmamh8d7HPM8QqjKH8DeHkFTx+CFlWpZZDA==}
@@ -1287,16 +1290,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@canvas-js/okra-lmdb@0.2.0':
+  '@canvas-js/okra-lmdb@0.2.1':
     dependencies:
-      '@canvas-js/okra': 0.4.5
+      '@canvas-js/okra': 0.4.6
       detect-libc: 2.0.3
       p-queue: 8.0.1
       uint8arrays: 5.1.0
 
-  '@canvas-js/okra-memory@0.4.5':
+  '@canvas-js/okra-memory@0.4.6':
     dependencies:
-      '@canvas-js/okra': 0.4.5
+      '@canvas-js/okra': 0.4.6
       functional-red-black-tree: 1.0.1
       p-queue: 8.0.1
       uint8arrays: 5.1.0
@@ -1309,11 +1312,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@canvas-js/okra@0.4.5':
+  '@canvas-js/okra@0.4.6':
     dependencies:
       '@noble/hashes': 1.5.0
       uint8arrays: 5.1.0
-      weald: 1.0.2
+      weald: 1.0.4
 
   '@esbuild/aix-ppc64@0.23.0':
     optional: true
@@ -2393,7 +2396,7 @@ snapshots:
       '@types/istanbul-lib-coverage': 2.0.6
       convert-source-map: 2.0.0
 
-  weald@1.0.2:
+  weald@1.0.4:
     dependencies:
       ms: 3.0.0-canary.1
       supports-color: 9.4.0

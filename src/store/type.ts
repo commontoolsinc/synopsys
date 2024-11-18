@@ -7,6 +7,7 @@ import type {
   Awaitable,
   ReadOnlyTransaction,
   ReadWriteTransaction,
+  Metadata,
 } from '@canvas-js/okra'
 
 import type {
@@ -18,7 +19,13 @@ import type {
   InferBindings as Selection,
   Selector,
 } from 'datalogia'
-import { Transaction, Commit, Revision, Instruction } from '../replica/type.js'
+import {
+  Transaction,
+  Commit,
+  Revision,
+  Instruction,
+  Sequence,
+} from '../replica/type.js'
 export * from '../replica/type.js'
 
 export type {
@@ -35,15 +42,15 @@ export type {
   Key,
 }
 
-export interface AwaitIterable<T> {
-  next(): Awaitable<IteratorResult<T>>
-}
-
 export interface PullSource {
   getRoot(): Task<Node, Error>
-  getNode(level: number, key: Uint8Array): Task<Node | null, Error>
+  getNode(level: number, key: Key): Task<Node | null, Error>
 
   getChildren(level: number, key: Uint8Array): Task<Node[], Error>
+}
+
+export interface AwaitIterable<T> {
+  next(): Awaitable<IteratorResult<T>>
 }
 
 export interface PullTarget extends PullSource {
@@ -52,7 +59,23 @@ export interface PullTarget extends PullSource {
     lowerBound?: Bound<Key> | null,
     upperBound?: Bound<Key> | null,
     options?: { reverse?: boolean }
+  ): Sequence<Node>
+}
+
+export interface SyncTarget extends PullSource {
+  nodes(
+    level: number,
+    lowerBound?: Bound<Key> | null,
+    upperBound?: Bound<Key> | null,
+    options?: { reverse?: boolean }
   ): AwaitIterable<Node>
+}
+
+export interface NodeStore extends PullSource, PullTarget {
+  readonly metadata: Metadata
+
+  setNode(node: Node): Task<void, Error>
+  deleteNode(level: number, key: Key): Task<void, Error>
 }
 
 /**
@@ -65,16 +88,16 @@ export interface StoreReader extends PullSource, PullTarget {
     options?: {
       reverse?: boolean
     }
-  ): AwaitIterable<Entry>
+  ): Sequence<Entry>
 
-  get(key: Uint8Array): Task<Uint8Array | null>
+  get(key: Uint8Array): Task<Uint8Array | null, Error>
 }
 
 export interface StoreWriter {
-  delete(key: Uint8Array): Task<void>
-  set(key: Uint8Array, value: Uint8Array): Task<void>
+  delete(key: Uint8Array): Task<{}, Error>
+  set(key: Uint8Array, value: Uint8Array): Task<{}, Error>
 
-  integrate(changes: Change[]): Task<Node>
+  integrate(changes: Change[]): Task<Node, Error>
 }
 
 export interface StoreEditor extends StoreReader, StoreWriter {}
@@ -87,7 +110,8 @@ export interface Store {
     write: (editor: StoreEditor) => Task<T, X>
   ): Task<T, X>
 
-  close(): Task<{}>
+  clear(): Task<{}, Error>
+  close(): Task<{}, Error>
 }
 
 export interface AsyncReader {

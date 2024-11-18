@@ -34,6 +34,7 @@ import type {
   Instantiation as Import,
   Fact,
   Variant,
+  Result,
 } from 'datalogia'
 import type { DataBase, DataProvider } from '../store/type.js'
 import type { Invocation, Task } from 'datalogia/task'
@@ -129,3 +130,11 @@ export type Instruction = Variant<{
 
 // We also override the `Transaction` so it uses our extended `Instruction` set.
 export interface Transaction extends Iterable<Instruction> {}
+
+export interface IterationFinished extends RangeError {
+  name: 'IterationFinished'
+}
+
+export interface Sequence<T> {
+  next(): Task<Result<T, IterationFinished>, Error>
+}

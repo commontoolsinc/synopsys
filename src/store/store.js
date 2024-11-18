@@ -1,11 +1,17 @@
 import * as Type from './type.js'
 import * as Okra from '@canvas-js/okra'
-import { Task } from 'datalogia'
+import * as Task from '../task.js'
+import { end } from './sequence.js'
+
+/**
+ * @param {Okra.Tree} tree
+ */
+export const from = (tree) => new Store(tree)
 
 /**
  * @implements {Type.Store}
  */
-export class Sync {
+export class Store {
   /**
    * @param {Okra.Tree} tree
    */
@@ -18,7 +24,7 @@ export class Sync {
    */
   *read(read) {
     const result = this.tree.read((reader) =>
-      Task.perform(read(new SyncReader(reader)))
+      Task.perform(read(new Reader(reader)))
     )
     return yield* Task.wait(result)
   }
@@ -28,7 +34,7 @@ export class Sync {
    */
   *write(write) {
     const result = this.tree.write((writer) =>
-      Task.perform(write(new SyncWriter(writer)))
+      Task.perform(write(new Writer(writer)))
     )
     return yield* Task.wait(result)
   }
@@ -37,9 +43,14 @@ export class Sync {
     yield* Task.wait(this.tree.close())
     return {}
   }
+
+  *clear() {
+    yield* Task.wait(this.tree.clear())
+    return {}
+  }
 }
 
-export class SyncReader {
+export class Reader {
   /**
    * @param {Type.ReadOnlyTransaction} transaction
    */
@@ -73,18 +84,43 @@ export class SyncReader {
 
   /** @type {Type.StoreReader['entries']}  */
   entries(lowerBound, upperBound, options) {
-    return this.transaction.entries(lowerBound, upperBound, options)
+    return new Sequence(
+      this.transaction.entries(lowerBound, upperBound, options)
+    )
   }
   /** @type {Type.StoreReader['nodes']}  */
   nodes(level, lowerBound, upperBound, options) {
-    return this.transaction.nodes(level, lowerBound, upperBound, options)
+    return new Sequence(
+      this.transaction.nodes(level, lowerBound, upperBound, options)
+    )
+  }
+}
+
+/**
+ * @template T
+ * @implements {Type.Sequence<T>}
+ */
+export class Sequence {
+  /**
+   * @param {IterableIterator<T>} source
+   */
+  constructor(source) {
+    this.source = source
+  }
+  *next() {
+    const next = this.source.next()
+    if (next.done) {
+      return end()
+    } else {
+      return { ok: next.value }
+    }
   }
 }
 
 /**
  * @implements {Type.StoreEditor}
  */
-export class SyncWriter extends SyncReader {
+export class Writer extends Reader {
   /**
    * @param {Type.ReadWriteTransaction} transaction
    */
@@ -94,11 +130,13 @@ export class SyncWriter extends SyncReader {
   }
   /** @type {Type.StoreWriter['delete']} */
   *delete(key) {
-    return this.transaction.delete(key)
+    this.transaction.delete(key)
+    return {}
   }
   /** @type {Type.StoreWriter['set']} */
   *set(key, value) {
-    return this.transaction.set(key, value)
+    this.transaction.set(key, value)
+    return {}
   }
 
   /**
@@ -113,132 +151,6 @@ export class SyncWriter extends SyncReader {
         this.transaction.delete(key)
       }
     }
-
-    return yield* this.getRoot()
-  }
-}
-
-/**
- * @implements {Type.Store}
- */
-export class Async {
-  /**
-   * @param {Type.AsyncReader} source
-   */
-  constructor(source) {
-    this.source = source
-  }
-
-  /**
-   * @type {Type.Store['read']}
-   */
-  read(read) {
-    return read(new AsyncReader(this.source))
-  }
-
-  /**
-   * @type {Type.Store['write']}
-   */
-  write(write) {
-    return write(new AsyncWriter(this.source))
-  }
-
-  *close() {
-    if (this.source.close) {
-      yield* Task.wait(this.source.close())
-    }
-    return {}
-  }
-}
-
-/**
- * @implements {Type.StoreReader}
- */
-class AsyncReader {
-  /**
-   * @param {Type.AsyncReader} source
-   */
-  constructor(source) {
-    this.source = source
-  }
-  *getRoot() {
-    const root = yield* Task.wait(this.source.getRoot())
-    return root
-  }
-  /**
-   * @param {number} level
-   * @param {Uint8Array} key
-   */
-  *getNode(level, key) {
-    const node = yield* Task.wait(this.source.getNode(level, key))
-    return node
-  }
-  /**
-   * @param {number} level
-   * @param {Uint8Array} key
-   */
-  *getChildren(level, key) {
-    const children = yield* Task.wait(this.source.getChildren(level, key))
-    return children
-  }
-  /**
-   * @param {Uint8Array} key
-   */
-  *get(key) {
-    const value = yield* Task.wait(this.source.get(key))
-    return value
-  }
-  /**
-   * @param {Type.Bound<Uint8Array>|null} [lowerBound]
-   * @param {Type.Bound<Uint8Array>|null} [upperBound]
-   * @param {{reverse?: boolean}} [options]
-   */
-  entries(lowerBound, upperBound, options) {
-    return this.source.entries(lowerBound, upperBound, options)
-  }
-  /**
-   * @param {number} level
-   * @param {Type.Bound<Type.Key>|null} [lowerBound]
-   * @param {Type.Bound<Type.Key>|null} [upperBound]
-   * @param {{reverse?: boolean}} [options]
-   */
-  nodes(level, lowerBound, upperBound, options) {
-    return this.source.nodes(level, lowerBound, upperBound, options)
-  }
-}
-
-/**
- * @implements {Type.StoreEditor}
- */
-class AsyncWriter extends AsyncReader {
-  /**
-   * @param {Uint8Array} key
-   */
-  *delete(key) {
-    return yield* Task.wait(this.source.delete(key))
-  }
-  /**
-   * @param {Uint8Array} key
-   * @param {Uint8Array} value
-   */
-  *set(key, value) {
-    return yield* Task.wait(this.source.set(key, value))
-  }
-
-  /**
-   *
-   * @param {Type.Change[]} changes
-   */
-  *integrate(changes) {
-    const promises = []
-    for (const [key, value] of changes) {
-      if (value) {
-        promises.push(this.source.set(key, value))
-      } else {
-        promises.push(this.source.delete(key))
-      }
-    }
-    yield* Task.wait(Promise.all(promises))
 
     return yield* this.getRoot()
   }

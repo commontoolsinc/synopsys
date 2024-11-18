@@ -1,5 +1,6 @@
+import { Task } from 'synopsys'
 import * as DAG from '../src/replica/dag.js'
-import { Task, Link } from 'datalogia'
+import { Link } from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 
 /**

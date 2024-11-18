@@ -1,5 +1,5 @@
-import { transact, query, Var, match, not } from 'datalogia'
-import { refer, Task, $, Source } from 'synopsys'
+import { transact, query, match, not } from 'datalogia'
+import { refer, Task, $, Source, Type } from 'synopsys'
 import * as IDB from 'synopsys/store/idb'
 import HybridSuite from './hybrid.js'
 import * as Memory from 'synopsys/store/memory'
@@ -9,8 +9,8 @@ import * as Memory from 'synopsys/store/memory'
  */
 export const testQuery = {
   selector: (assert) =>
-    Task.spawn(function* () {
-      const { db } = yield* open()
+    spawn(function* (db) {
+      yield* init(db)
 
       const { title, done, name, list, todo } = $
 
@@ -55,18 +55,38 @@ export const testQuery = {
     }),
 
   hybrid: HybridSuite({
-    *open() {
+    *spawn(work) {
       const durable = yield* IDB.open()
       const ephemeral = yield* Memory.open()
-      return { durable, ephemeral }
+      try {
+        yield* work({ durable, ephemeral })
+      } finally {
+        yield* durable.clear()
+      }
     },
   }),
 }
 
-function* open() {
+/**
+ *
+ * @param {(db: Type.DataSource) => Task.Task<unknown, Error>} work
+ */
+function* spawn(work) {
   const store = yield* IDB.open()
   const db = yield* Source.open(store)
 
+  try {
+    yield* work(db)
+  } finally {
+    yield* store.clear()
+  }
+}
+
+/**
+ *
+ * @param {Type.DataSource} db
+ */
+function* init(db) {
   const groceries = refer({ name: 'Groceries' })
   const chores = refer({ name: 'Chores' })
 

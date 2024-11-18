@@ -2,14 +2,12 @@ import { transact, query } from 'datalogia'
 import { refer, Task, $, Type, Hybrid } from 'synopsys'
 /**
  * @param {object} options
- * @param {() => Task.Task<{durable: Type.Store, ephemeral: Type.Store}, Error>} options.open
+ * @param {(work: (stores: { durable: Type.Store, ephemeral: Type.Store }) => Task.Task<unknown, Error>) => Task.Task<unknown, Error>} options.spawn
  * @returns {import('entail').Suite}
  */
-export default (options) => ({
+export default ({ spawn }) => ({
   'local facts are ephemeral': (assert) =>
-    Task.spawn(function* () {
-      const { durable, ephemeral } = yield* options.open()
-
+    spawn(function* ({ durable, ephemeral }) {
       const hybrid = yield* Hybrid.open({ ephemeral, durable })
 
       const provider = refer({

@@ -1,4 +1,3 @@
-import { Var } from 'datalogia'
 import * as Type from '../type.js'
 
 class Variable {

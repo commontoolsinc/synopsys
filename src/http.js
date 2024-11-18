@@ -1,9 +1,7 @@
 import { Task } from './lib.js'
-import Stream from 'node:stream'
 import * as API from './http/api.js'
 export * from './http/api.js'
 
-import * as body from '@web-std/fetch/body'
 import { ReadableStream, TransformStream } from '@web-std/stream'
 import { Request, Response, Headers, FormData, Blob } from '@web-std/fetch'
 import * as HTTP from 'http'
