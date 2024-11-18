@@ -1,6 +1,4 @@
 import { Task } from 'synopsys'
-import * as Queue from '../src/store/idb/queue.js'
-import test from 'node:test'
 
 /**
  * @type {import('entail').Suite}
@@ -8,7 +6,7 @@ import test from 'node:test'
 export const testQueue = {
   testTwoSyncTasks: (assert) =>
     Task.spawn(function* () {
-      const queue = Queue.new()
+      const queue = Task.queue()
 
       const a = queue.spawn(function* () {
         return 'a'
@@ -24,7 +22,7 @@ export const testQueue = {
 
   testTwoAsyncTasks: (assert) =>
     Task.spawn(function* () {
-      const queue = Queue.new()
+      const queue = Task.queue()
       /** @type {string[]} */
       const order = []
 
@@ -47,7 +45,7 @@ export const testQueue = {
 
   'testSync&Async': (assert) =>
     Task.spawn(function* () {
-      const queue = Queue.new()
+      const queue = Task.queue()
       /** @type {string[]} */
       const order = []
 

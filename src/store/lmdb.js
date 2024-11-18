@@ -1,6 +1,6 @@
 import * as LMDB from '@canvas-js/okra-lmdb'
+import * as Store from './store.js'
 import { fileURLToPath } from 'node:url'
-import { Sync } from './store.js'
 
 export * from '../source/store.js'
 
@@ -16,5 +16,5 @@ export * from '../source/store.js'
  * @param {Open} source
  */
 export function* open({ url, ...options }) {
-  return new Sync(new LMDB.Tree(fileURLToPath(url), options))
+  return Store.from(new LMDB.Tree(fileURLToPath(url), options))
 }

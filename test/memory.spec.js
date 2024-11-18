@@ -1,4 +1,4 @@
-import { transact, query, Var, match, not } from 'datalogia'
+import { transact, query, match, not } from 'datalogia'
 import { refer, Task, $, Source } from 'synopsys'
 import * as Memory from 'synopsys/store/memory'
 

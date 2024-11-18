@@ -4,156 +4,167 @@ import {
   parseEntry,
   createEntryKey,
   getLeafAnchorHash,
-  map,
 } from './util.js'
-import { Task } from 'datalogia'
+import { map, end } from '../sequence.js'
+import * as Task from '../../task.js'
 import * as Okra from '@canvas-js/okra'
 import { KeyValueNodeStore } from '@canvas-js/okra'
 import * as Type from '../../replica/type.js'
-import { compare, equals, toString } from 'uint8arrays'
+import { equals } from 'uint8arrays'
 
 const Mode = /** @type {const} */ ({ Index: 0, Store: 1 })
 
-export class Store {
+/**
+ * @typedef {object} IDBSession
+ * @property {IDBObjectStore} store
+ * @property {IDBTransaction} transaction
+ */
+
+export class StoreSession {
   static magic = KeyValueNodeStore.magic
   static metadataKey = KeyValueNodeStore.metadataKey
   static anchorLeafKey = KeyValueNodeStore.anchorLeafKey
 
-  db
-  storeName
-  /** @type {IDBTransaction|null} */
-  txn = null
+  /** @type {IDBSession|null} */
+  #session
   /**
-   * @param {IDBDatabase} db
-   * @param {string} storeName
+   * @param {IDBSession} session
    */
-  constructor(db, storeName) {
-    this.db = db
-    this.storeName = storeName
-    this.oncomplete = this.oncomplete.bind(this)
+  constructor(session) {
+    this.close = this.close.bind(this)
+    session.transaction.oncomplete = this.close
+    this.#session = session
+  }
+  close() {
+    this.#session = null
   }
 
-  oncomplete() {
-    this.txn = null
-  }
-
-  /**
-   * @param {IDBTransactionMode} mode
-   */
-  transaction(mode) {
-    const transaction = this.db.transaction(this.storeName, mode)
-    transaction.oncomplete = this.oncomplete
-    return transaction
-  }
-  /**
-   * @template T
-   * @param {(store: IDBObjectStore) => Task.Task<T, Error>} job
-   * @returns {Task.Task<T, Error>}
-   */
-  *write(job) {
-    const txn = this.transaction('readwrite')
-    try {
-      txn.oncomplete = this.oncomplete
-      this.txn = txn
-
-      const result = yield* job(txn.objectStore(this.storeName))
-      this.txn.commit()
-
-      return result
-    } catch (err) {
-      console.error(err)
-      txn.abort()
-    } finally {
-      this.txn = null
-    }
-
-    throw new Error('Should never have reached this point')
-  }
-  /**
-   * @template T
-   * @param {(store: IDBObjectStore) => Task.Task<T, Error>} job
-   * @returns {Task.Task<T, Error>}
-   */
-  *read(job) {
-    try {
-      const txn = this.db.transaction(this.storeName, 'readonly')
-      txn.oncomplete = this.oncomplete
-      this.txn
-
-      const result = yield* job(txn.objectStore(this.storeName))
-      txn.commit()
-      return result
-    } finally {
-      this.txn = null
+  get session() {
+    if (this.#session) {
+      return this.#session
+    } else {
+      throw new Error(`Transaction session is closed`)
     }
   }
+
   /**
    * @param {Uint8Array} key
    * @returns {Task.Task<Uint8Array|null, Error>}
    */
-  get(key) {
-    return this.read(function* (store) {
-      const value = yield* poll(store.get(key))
-      if (value === undefined) {
-        return null
-      } else if (value instanceof Uint8Array) {
-        return value
-      } else {
-        throw new Error('Unexpected value type')
-      }
-    })
+  *get(key) {
+    const value = yield* poll(this.session.store.get(key))
+    if (value === undefined) {
+      return null
+    } else if (value instanceof Uint8Array) {
+      return value
+    } else {
+      throw new Error('Unexpected value type')
+    }
   }
   /**
    *
    * @param {Uint8Array} key
    * @param {Uint8Array} value
    */
-  set(key, value) {
-    return this.write(function* (store) {
-      return yield* poll(store.put(value, key))
-    })
+  *set(key, value) {
+    return yield* poll(this.session.store.put(value, key))
   }
   /**
    * @param {Uint8Array} key
    */
   *delete(key) {
-    return this.write(function* (store) {
-      return yield* poll(store.delete(key))
-    })
+    return yield* poll(this.session.store.delete(key))
   }
   /**
    *
    * @param {Okra.Bound<Uint8Array>|null} lowerBound
    * @param {Okra.Bound<Uint8Array>|null} upperBound
    * @param {{reverse?:boolean}} [options]
+   * @returns {Type.Sequence<[key:Uint8Array, value:Uint8Array]>}
    */
   entries(lowerBound = null, upperBound = null, { reverse = false } = {}) {
-    return new Iterator(
-      this.db,
-      this.storeName,
-      lowerBound,
-      upperBound,
-      reverse
-    )
+    const range = toIDBKeyRange(lowerBound, upperBound)
+    const direction = toIDBCursorDirection(reverse)
+    const request = this.session.store.openCursor(range, direction)
+    return new Entries(this, request)
+  }
+
+  *clear() {
+    yield* poll(this.session.store.clear())
+    return {}
+  }
+}
+
+/**
+ * @implements {Type.Sequence<[key: Uint8Array, value: Uint8Array]>}
+ */
+
+class Entries {
+  /**
+   * @param {StoreSession} store
+   * @param {IDBRequest<IDBCursorWithValue | null>} request
+   */
+  constructor(store, request) {
+    this.store = store
+    this.request = request
+    /** @type {IDBCursorWithValue | null} */
+    this.cursor = null
+
+    this.done = false
+  }
+  get session() {
+    return this.store.session
+  }
+
+  /**
+   * @returns {Task.Task<Type.Result<[key:Uint8Array, value:Uint8Array], Type.IterationFinished>, Error>}
+   */
+  *next() {
+    if (this.done) {
+      return end()
+    }
+
+    if (this.cursor != null) {
+      this.cursor.continue()
+    }
+    const cursor = yield* poll(this.request)
+    this.cursor = cursor
+    if (cursor == null) {
+      this.done = true
+      return end()
+    } else {
+      const { value } = cursor
+      const { key } =
+        cursor.key instanceof ArrayBuffer
+          ? { key: new Uint8Array(cursor.key) }
+          : cursor
+      assert(key instanceof Uint8Array, 'Unexpected cursor key type')
+      assert(value instanceof Uint8Array, 'Unexpected cursor value type')
+      return { ok: [key, value] }
+    }
   }
 }
 
 export class NodeStore {
   /**
    * @param {Okra.Metadata} metadata
-   * @param {Store} store
+   * @param {StoreSession} session
    */
-  constructor(metadata, store) {
-    this.store = store
+  constructor(metadata, session) {
+    this.session = session
     this.metadata = metadata
   }
 
   *initialize() {
-    const metadataValue = yield* this.store.get(KeyValueNodeStore.metadataKey)
+    const metadataValue = yield* this.session.get(KeyValueNodeStore.metadataKey)
 
     if (metadataValue === null) {
-      this.setMetadata(this.metadata)
-      this.setNode({ level: 0, key: null, hash: getLeafAnchorHash(this) })
+      yield* this.setMetadata(this.metadata)
+      yield* this.setNode({
+        level: 0,
+        key: null,
+        hash: getLeafAnchorHash(this),
+      })
       return
     }
 
@@ -183,7 +194,7 @@ export class NodeStore {
     // we have to handle the case where a v2 mode is
     // provided but metadataValue.byteLength is 10.
     if (metadataValue.byteLength === 10) {
-      this.setMetadata(this.metadata)
+      yield* this.setMetadata(this.metadata)
       return
     }
 
@@ -205,7 +216,7 @@ export class NodeStore {
     data[5] = metadata.K
     view.setUint32(6, metadata.Q)
     data[10] = metadata.mode
-    yield* this.store.set(KeyValueNodeStore.metadataKey, data)
+    yield* this.session.set(KeyValueNodeStore.metadataKey, data)
   }
   /**
    * Get the root node of the merkle tree. Returns the leaf anchor node if the tree is empty.
@@ -214,13 +225,13 @@ export class NodeStore {
    */
   *getRoot() {
     const upperBound = { key: KeyValueNodeStore.metadataKey, inclusive: false }
-    const entries = this.store.entries(null, upperBound, { reverse: true })
-    while (!entries.done) {
+    const entries = this.session.entries(null, upperBound, { reverse: true })
+    while (true) {
       const next = yield* entries.next()
-      if (next.done) {
+      if (next.error) {
         break
       } else {
-        const [key, value] = next.value
+        const [key, value] = next.ok
         const node = parseEntry(this, [key, value])
         assert(
           node.key === null,
@@ -242,7 +253,7 @@ export class NodeStore {
    */
   *getNode(level, key) {
     const entryKey = createEntryKey(level, key)
-    const entryValue = yield* this.store.get(entryKey)
+    const entryValue = yield* this.session.get(entryKey)
     return entryValue && parseEntry(this, [entryKey, entryValue])
   }
 
@@ -265,10 +276,10 @@ export class NodeStore {
       )
       entryValue.set(node.hash)
       entryValue.set(node.value, this.metadata.K)
-      return yield* this.store.set(entryKey, entryValue)
+      return yield* this.session.set(entryKey, entryValue)
     } else {
       assert(node.value === undefined)
-      return yield* this.store.set(entryKey, node.hash)
+      return yield* this.session.set(entryKey, node.hash)
     }
   }
 
@@ -279,7 +290,7 @@ export class NodeStore {
    */
   *deleteNode(level, key) {
     const entryKey = createEntryKey(level, key)
-    return yield* this.store.delete(entryKey)
+    return yield* this.session.delete(entryKey)
   }
 
   /**
@@ -288,6 +299,7 @@ export class NodeStore {
    * @param {Okra.Bound<Okra.Key> | null} [lowerBound]
    * @param {Okra.Bound<Okra.Key>|null} [upperBound]
    * @param {{reverse?:boolean}} [options]
+   * @returns {Type.Sequence<Okra.Node>}
    */
   nodes(level, lowerBound, upperBound, { reverse = false } = {}) {
     const lowerKeyBound = lowerBound
@@ -303,11 +315,15 @@ export class NodeStore {
         }
       : { key: createEntryKey(level + 1, null), inclusive: false }
 
-    const entries = this.store.entries(lowerKeyBound, upperKeyBound, {
+    const entries = this.session.entries(lowerKeyBound, upperKeyBound, {
       reverse,
     })
 
-    return entries.map((entry) => parseEntry(this, entry))
+    return map(entries, (entry) => parseEntry(this, entry))
+  }
+
+  *clear() {
+    return yield* this.session.clear()
   }
 }
 
@@ -335,100 +351,5 @@ const toIDBKeyRange = (lowerBound, upperBound) => {
     return IDBKeyRange.upperBound(upperBound.key, !upperBound.inclusive)
   } else {
     return null
-  }
-}
-
-/**
- * @implements {AsyncIterable<[key:Uint8Array, value:Uint8Array]>}
- * @implements {Type.AwaitIterable<[key:Uint8Array, value:Uint8Array]>}
- */
-class Iterator {
-  /**
-   * @param {IDBDatabase} db
-   * @param {string} storeName
-   * @param {Okra.Bound<Uint8Array>|null} lowerBound
-   * * @param {Okra.Bound<Uint8Array>|null} upperBound
-   * @param {boolean} reverse
-   */
-  constructor(db, storeName, lowerBound, upperBound, reverse) {
-    this.db = db
-    this.storeName = storeName
-    this.lowerBound = lowerBound
-    this.upperBound = upperBound
-    this.position = null
-    this.cursor = null
-    this.reverse = reverse
-    /** @type {IDBRequest<IDBCursorWithValue | null>|null} */
-    this.request = null
-
-    this.done = false
-  }
-  oncomplete() {
-    this.cursor = null
-    this.request = null
-  }
-
-  /**
-   *
-   * @returns {Task.Task<IteratorResult<[Uint8Array, Uint8Array]>, Error>}
-   */
-  *poll() {
-    if (this.done) {
-      return { done: true, value: undefined }
-    }
-
-    if (this.request == null) {
-      const transaction = this.db.transaction(this.storeName, 'readonly')
-      transaction.oncomplete = this.oncomplete
-      transaction.onabort = this.oncomplete
-      const store = transaction.objectStore(this.storeName)
-      const range =
-        this.position == null
-          ? toIDBKeyRange(this.lowerBound, this.upperBound)
-          : this.reverse
-            ? toIDBKeyRange(this.lowerBound, this.position)
-            : toIDBKeyRange(this.position, this.upperBound)
-
-      this.request = store.openCursor(range, toIDBCursorDirection(this.reverse))
-      this.cursor = yield* poll(this.request)
-    } else if (this.cursor != null) {
-      this.cursor.continue()
-      this.cursor = yield* poll(this.request)
-    }
-
-    if (this.cursor != null) {
-      const { key, value } = this.cursor
-      assert(key instanceof Uint8Array, 'Unexpected cursor key type')
-      assert(value instanceof Uint8Array, 'Unexpected cursor value type')
-
-      // Update cursor to a new position so that on next poll we will continue
-      // from where we left off.
-      this.position = { key, inclusive: false }
-
-      return { done: false, value: [key, value] }
-    } else {
-      return { done: true, value: undefined }
-    }
-  }
-  next() {
-    return Task.perform(this.poll())
-  }
-  async return() {
-    this.done = true
-    this.request?.transaction?.abort()
-
-    return /** @type {const} */ ({ done: true, value: undefined })
-  }
-  [Symbol.asyncIterator]() {
-    return this
-  }
-
-  /**
-   * @template T
-   * @param {(entry: [key: Uint8Array, value: Uint8Array]) => T} f
-   * @returns {Type.AwaitIterable<T>}
-   */
-  map(f) {
-    return map(this, f)
   }
 }

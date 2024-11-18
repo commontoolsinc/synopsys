@@ -19,7 +19,13 @@ import type {
   InferBindings as Selection,
   Selector,
 } from 'datalogia'
-import { Transaction, Commit, Revision, Instruction } from '../replica/type.js'
+import {
+  Transaction,
+  Commit,
+  Revision,
+  Instruction,
+  Sequence,
+} from '../replica/type.js'
 export * from '../replica/type.js'
 
 export type {
@@ -36,11 +42,6 @@ export type {
   Key,
 }
 
-export interface AwaitIterable<T> {
-  poll(): Task<IteratorResult<T>, Error>
-  next(): Awaitable<IteratorResult<T>>
-}
-
 export interface PullSource {
   getRoot(): Task<Node, Error>
   getNode(level: number, key: Key): Task<Node | null, Error>
@@ -48,7 +49,20 @@ export interface PullSource {
   getChildren(level: number, key: Uint8Array): Task<Node[], Error>
 }
 
+export interface AwaitIterable<T> {
+  next(): Awaitable<IteratorResult<T>>
+}
+
 export interface PullTarget extends PullSource {
+  nodes(
+    level: number,
+    lowerBound?: Bound<Key> | null,
+    upperBound?: Bound<Key> | null,
+    options?: { reverse?: boolean }
+  ): Sequence<Node>
+}
+
+export interface SyncTarget extends PullSource {
   nodes(
     level: number,
     lowerBound?: Bound<Key> | null,
@@ -74,7 +88,7 @@ export interface StoreReader extends PullSource, PullTarget {
     options?: {
       reverse?: boolean
     }
-  ): AwaitIterable<Entry>
+  ): Sequence<Entry>
 
   get(key: Uint8Array): Task<Uint8Array | null, Error>
 }
@@ -96,7 +110,8 @@ export interface Store {
     write: (editor: StoreEditor) => Task<T, X>
   ): Task<T, X>
 
-  close(): Task<{}>
+  clear(): Task<{}, Error>
+  close(): Task<{}, Error>
 }
 
 export interface AsyncReader {

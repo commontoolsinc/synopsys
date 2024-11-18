@@ -1,7 +1,6 @@
 import * as Type from './type.js'
 import { isLink } from 'multiformats/link'
 import { refer, Reference } from 'merkle-reference'
-import { code } from '@ipld/dag-cbor'
 
 /**
  * @typedef {object} Options

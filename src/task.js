@@ -1,8 +1,7 @@
-import { Task } from 'datalogia'
+import * as Task from 'datalogia/task'
+export * from 'datalogia/task'
 
-export const create = () => new Queue()
-
-export { create as new }
+export const queue = () => new Queue()
 
 class Queue {
   constructor() {
@@ -12,8 +11,9 @@ class Queue {
 
   /**
    * @template T
-   * @param {() => Task.Task<T, Error>} work
-   * @returns {Task.Task<T, Error>}
+   * @template {Error} X
+   * @param {() => Task.Task<T, X>} work
+   * @returns {Task.Task<T, X>}
    */
   spawn(work) {
     const { queue } = this
@@ -40,21 +40,4 @@ class Queue {
       }
     })
   }
-
-  // /**
-  //  * @template T
-  //  * @param {() => Task.Task<T, Error>} work
-  //  * @returns {Task.Task<T, Error>}
-  //  */
-  // enqueue(work) {
-  //   const pending = this.work
-  //   const queued = Task.spawn(function* () {
-  //     yield* Task.result(pending)
-  //     const result = yield* work()
-  //     return result
-  //   })
-  //   this.work = queued
-
-  //   return queued
-  // }
 }

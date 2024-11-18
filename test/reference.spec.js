@@ -1,4 +1,4 @@
-import { refer, Task, $ } from 'synopsys'
+import { refer } from 'synopsys'
 import * as Reference from '../src/datum/reference.js'
 import { base32 } from 'merkle-reference'
 

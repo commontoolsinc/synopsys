@@ -1,7 +1,6 @@
-import { Task } from 'datalogia'
+import * as Task from '../../task.js'
 import { KeyValueNodeStore } from '@canvas-js/okra'
 import * as Okra from '@canvas-js/okra'
-import * as Type from '../../replica/type.js'
 
 export { equalKeys, hashEntry, compareKeys } from '@canvas-js/okra'
 
@@ -85,41 +84,6 @@ export const createEntryKey = (level, key) => {
  */
 export const getLeafAnchorHash = (self) =>
   KeyValueNodeStore.prototype.getLeafAnchorHash.call(self)
-
-/**
- * @template T, U
- * @param {Type.AwaitIterable<T>} source
- * @param {(input: T) => U} f
- * @returns {Type.AwaitIterable<U>}
- */
-export const map = (source, f) => new MappedIterator(source, f)
-
-/**
- * @template T, U
- * @implements {Type.AwaitIterable<U>}
- */
-class MappedIterator {
-  /**
-   *
-   * @param {Type.AwaitIterable<T>} source
-   * @param {(input: T) => U} f
-   */
-  constructor(source, f) {
-    this.source = source
-    this.f = f
-  }
-  *poll() {
-    const next = yield* this.source.poll()
-    if (next.done) {
-      return next
-    } else {
-      return { done: false, value: this.f(next.value) }
-    }
-  }
-  next() {
-    return Task.perform(this.poll())
-  }
-}
 
 /**
  * Determines if a node is a boundary node.

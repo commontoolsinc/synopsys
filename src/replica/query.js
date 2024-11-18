@@ -1,6 +1,6 @@
 import * as DB from 'datalogia'
 import * as Type from './type.js'
-import * as Task from 'datalogia/task'
+import * as Task from '../task.js'
 import * as JSON from '@ipld/dag-json'
 import * as DAG from './dag.js'
 import { Var } from 'datalogia'

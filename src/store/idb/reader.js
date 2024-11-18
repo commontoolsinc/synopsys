@@ -1,8 +1,9 @@
 import * as Okra from '@canvas-js/okra'
 import { NodeStore } from './store.js'
 import * as Type from '../../replica/type.js'
-import { Task } from 'datalogia'
-import { assert, map, equalKeys, isBoundary } from './util.js'
+import * as Task from '../../task.js'
+import { assert, equalKeys, isBoundary } from './util.js'
+import { map } from '../sequence.js'
 
 /**
  * Implementation of a read-only transaction.
@@ -84,12 +85,12 @@ export class Reader {
     const children = []
     const nodes = this.store.nodes(level - 1, { key, inclusive: true })
     while (true) {
-      const next = yield* nodes.poll()
-      if (next.done) {
+      const next = yield* nodes.next()
+      if (next.error) {
         break
       }
 
-      const node = next.value
+      const node = next.ok
       if (isBoundary(this, node) && !equalKeys(node.key, key)) {
         break
       } else {
@@ -107,7 +108,7 @@ export class Reader {
    * @param {Okra.Bound<Okra.Key> | null} [upperBound] - The upper bound.
    * @param {Object} [options] - Additional options.
    * @param {boolean} [options.reverse] - Whether to iterate in reverse order.
-   * @returns {Type.AwaitIterable<Okra.Node>} An iterator for the nodes.
+   * @returns {Type.Sequence<Okra.Node>} An iterator for the nodes.
    */
   nodes(level, lowerBound = null, upperBound = null, options = {}) {
     return this.store.nodes(level, lowerBound, upperBound, options)
@@ -120,7 +121,7 @@ export class Reader {
    * @param {Okra.Bound<Uint8Array> | null} [upperBound=null] - The upper bound.
    * @param {Object} [options={}] - Additional options.
    * @param {boolean} [options.reverse] - Whether to iterate in reverse order.
-   * @returns {Type.AwaitIterable<Uint8Array>} An iterator for the keys.
+   * @returns {Type.Sequence<Uint8Array>} An iterator for the keys.
    */
   keys(lowerBound = null, upperBound = null, options = {}) {
     const nodes = this.nodes(
@@ -139,7 +140,7 @@ export class Reader {
    * @param {Okra.Bound<Uint8Array> | null} [upperBound=null] - The upper bound.
    * @param {Object} [options={}] - Additional options.
    * @param {boolean} [options.reverse] - Whether to iterate in reverse order.
-   * @returns {Type.AwaitIterable<Okra.Entry>} An iterator for the entries.
+   * @returns {Type.Sequence<Okra.Entry>} An iterator for the entries.
    * @throws {Error} If the mode is not Store.
    */
   entries(lowerBound = null, upperBound = null, options = {}) {

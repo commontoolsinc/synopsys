@@ -1,4 +1,5 @@
-import { Constant, API, Task } from 'datalogia'
+import { Constant, API } from 'datalogia'
+import * as Task from '../task.js'
 import * as DB from 'datalogia'
 import * as CBOR from '@ipld/dag-cbor'
 import { base58btc } from 'multiformats/bases/base58'
@@ -120,16 +121,16 @@ export const scan = ({ store }, { entity, attribute, value } = {}) =>
   store.read((reader) => iterate(reader, { entity, attribute, value }))
 
 /**
- * @param {Type.AwaitIterable<Type.Entry>} entries
+ * @param {Type.Sequence<Type.Entry>} entries
  */
 function* collectDatums(entries) {
   const results = []
   while (true) {
-    const { done, value: entry } = yield* Task.wait(entries.next())
-    if (done) {
+    const result = yield* entries.next()
+    if (result.error) {
       break
     } else {
-      const [, value] = yield* Task.wait(entry)
+      const [, value] = result.ok
       const datum = Datum.fromBytes(value)
       results.push(datum)
     }
@@ -139,7 +140,7 @@ function* collectDatums(entries) {
 }
 
 /**
- * @param {Type.AwaitIterable<Type.Entry>} entries
+ * @param {Type.Sequence<Type.Entry>} entries
  * @param {SearchPath} path
  */
 function* collectMatchingDatums(entries, [_index, _entity, _attribute, value]) {
@@ -147,11 +148,11 @@ function* collectMatchingDatums(entries, [_index, _entity, _attribute, value]) {
   const suffix = /** @type {Uint8Array} */ (value)
   const offset = suffix.length + 1
   while (true) {
-    const { done, value: entry } = yield* Task.wait(entries.next())
-    if (done) {
+    const result = yield* entries.next()
+    if (result.error) {
       break
     } else {
-      const [key, value] = yield* Task.wait(entry)
+      const [key, value] = result.ok
       if (Bytes.equal(key.subarray(-offset, -1), suffix)) {
         const datum = Datum.fromBytes(value)
         results.push(datum)

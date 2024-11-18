@@ -1,6 +1,6 @@
 import * as Type from '../type.js'
 import * as DB from 'datalogia'
-import { Task } from 'datalogia'
+import * as Task from '../../task.js'
 import { refer } from '../../datum/reference.js'
 import { broadcast, channel } from '../sync.js'
 

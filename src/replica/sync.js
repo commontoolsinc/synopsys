@@ -1,4 +1,4 @@
-import * as Task from 'datalogia/task'
+import * as Task from '../task.js'
 import * as Type from './type.js'
 
 /**

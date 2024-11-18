@@ -1,15 +1,8 @@
 import * as Okra from '@canvas-js/okra'
 import { NodeStore } from './store.js'
 import * as Type from '../../replica/type.js'
-import { Task } from 'datalogia'
-import {
-  assert,
-  map,
-  equalKeys,
-  hashEntry,
-  compareKeys,
-  isBoundary,
-} from './util.js'
+import * as Task from '../../task.js'
+import { hashEntry, compareKeys, isBoundary } from './util.js'
 import { Reader } from './reader.js'
 import { equals } from 'uint8arrays'
 import { blake3 } from '@noble/hashes/blake3'
@@ -156,8 +149,8 @@ export class Writer extends Reader {
 
     const nodes = this.store.nodes(level, { key: null, inclusive: false }, null)
     while (true) {
-      const next = yield* nodes.poll()
-      if (next.done) {
+      const result = yield* nodes.next()
+      if (result.error) {
         break
       } else {
         yield* this.updateAnchor(level + 1)
@@ -215,11 +208,11 @@ export function* getHash(self, level, key) {
   const nodes = self.store.nodes(level - 1, { key, inclusive: true })
 
   while (true) {
-    const next = yield* nodes.poll()
-    if (next.done) {
+    const result = yield* nodes.next()
+    if (result.error) {
       break
     }
-    const node = next.value
+    const node = result.ok
     if (compareKeys(key, node.key) === -1 && isBoundary(self, node)) {
       break
     }
@@ -249,11 +242,11 @@ export function* getFirstSibling(self, node) {
   })
 
   while (true) {
-    const next = yield* nodes.poll()
-    if (next.done) {
+    const result = yield* nodes.next()
+    if (result.error) {
       break
     } else {
-      const prev = next.value
+      const prev = result.ok
       if (prev.key === null || isBoundary(self, prev)) {
         return prev
       }

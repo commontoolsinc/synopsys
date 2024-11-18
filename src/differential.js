@@ -1,6 +1,17 @@
 import * as Type from './replica/type.js'
-import { Task } from 'datalogia'
-import { sync } from '@canvas-js/okra'
+import * as Task from './task.js'
+import * as Okra from '@canvas-js/okra'
+import { toIterator } from './store/sequence.js'
+
+/**
+ * @typedef {Okra.SyncSource & {
+ *   nodes(level: number, lowerBound?: Okra.Bound<Okra.Key>|null, upperBound?: Okra.Bound<Okra.Key>|null, options?: { reverse?: boolean }): Type.AwaitIterable<Okra.Node>
+ * }} OkraSyncTarget
+ *
+ * @type {(source: Okra.SyncSource, target: OkraSyncTarget) => AsyncGenerator<Okra.Delta, void, void>}
+ */
+// We override type signature because it is incorrect
+const sync = /** @type {any} */ (Okra.sync)
 
 /**
  * @typedef {object} Delta
@@ -18,8 +29,7 @@ import { sync } from '@canvas-js/okra'
 export function* differentiate(local, remote, merge) {
   /** @type {Delta} */
   const changes = { local: [], remote: [] }
-  /** @type {Type.ReadOnlyTransaction} */
-  const target = /** @type {any} */ (new PullTarget(local))
+  const target = new SyncTarget(local)
   const source = new PullSource(remote)
   const delta = sync(source, target)
   while (true) {
@@ -68,7 +78,7 @@ class PullSource {
   }
 }
 
-class PullTarget extends PullSource {
+class SyncTarget extends PullSource {
   /**
    *
    * @param {Type.StoreReader} reader
@@ -77,9 +87,9 @@ class PullTarget extends PullSource {
     super(reader)
     this.reader = reader
   }
-  /** @type {Type.StoreReader['nodes']} */
+  /** @type {Type.SyncTarget['nodes']} */
   nodes(level, lowerBound, upperBound, options) {
-    return this.reader.nodes(level, lowerBound, upperBound, options)
+    return toIterator(this.reader.nodes(level, lowerBound, upperBound, options))
   }
 
   get entries() {

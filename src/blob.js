@@ -1,4 +1,4 @@
-import { Task } from 'datalogia'
+import * as Task from './task.js'
 
 /**
  * @typedef {{url: URL}} Open
