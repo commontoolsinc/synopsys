@@ -162,7 +162,9 @@ export class BroadcastStream {
       port.error(reason)
     }
     this.#ports.clear()
-    this.#source.cancel(reason)
+    // If abort is coming from the source cancellation attempt to cancel
+    // it will create an error, which is why we ignore it.
+    this.#source.cancel(reason).catch(() => null)
     this.#closed.write(undefined)
   }
 

@@ -80,7 +80,7 @@ export const testSync = {
 
     await writer.write(2)
 
-    writer.abort(new Error('Terminate'))
+    await writer.abort(new Error('Terminate'))
 
     assert.deepEqual(await first, [
       { ok: 1 },
