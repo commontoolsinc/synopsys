@@ -231,8 +231,7 @@ export class NodeStore {
       if (next.error) {
         break
       } else {
-        const [key, value] = next.ok
-        const node = parseEntry(this, [key, value])
+        const node = parseEntry(this, next.ok)
         assert(
           node.key === null,
           'Internal error: unexpected root node key',

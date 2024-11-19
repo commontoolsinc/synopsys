@@ -134,7 +134,26 @@ export class Tree {
       })
 
       const store = new NodeStore(metadata, session)
-      return yield* job(new Writer(store))
+      const result = yield* job(new Writer(store))
+      yield* commit(transaction)
+      return result
     })
   }
+}
+
+/**
+ * @param {IDBTransaction} transaction
+ */
+function* commit(transaction) {
+  const invocation = Task.perform(Task.suspend())
+
+  const onCommit = () => {
+    transaction.removeEventListener('complete', onCommit)
+    invocation.abort(Task.RESUME)
+  }
+  transaction.addEventListener('complete', onCommit)
+
+  transaction.commit()
+
+  yield* Task.result(invocation)
 }

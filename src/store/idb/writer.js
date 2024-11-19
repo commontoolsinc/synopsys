@@ -79,7 +79,6 @@ export class Writer extends Reader {
   }
 
   /**
-   *
    * @param {number} level
    * @param {Okra.Key} key
    */
@@ -117,7 +116,6 @@ export class Writer extends Reader {
   }
 
   /**
-   *
    * @param {Okra.Node} node
    */
   *replaceBoundary(node) {
@@ -142,22 +140,38 @@ export class Writer extends Reader {
    * @returns {Task.Task<{}, Error>}
    */
   *updateAnchor(level) {
-    const hash = yield* getHash(this, level, null)
+    const stack = [level]
 
-    const anchor = { level, key: null, hash }
-    yield* this.store.setNode(anchor)
+    while (stack.length > 0) {
+      const level = /** @type {number} */ (stack.pop())
+      const hash = yield* getHash(this, level, null)
 
-    const nodes = this.store.nodes(level, { key: null, inclusive: false }, null)
-    while (true) {
-      const result = yield* nodes.next()
-      if (result.error) {
-        break
-      } else {
-        yield* this.updateAnchor(level + 1)
+      const anchor = { level, key: null, hash }
+      yield* this.store.setNode(anchor)
+
+      let hasChildren = false
+      const nodes = this.store.nodes(
+        level,
+        { key: null, inclusive: false },
+        null
+      )
+
+      while (true) {
+        const result = yield* nodes.next()
+        if (result.error) {
+          break
+        } else {
+          hasChildren = true
+          stack.push(level + 1)
+          break
+        }
+      }
+
+      if (!hasChildren) {
+        yield* this.deleteParents(level, null)
       }
     }
 
-    yield* this.deleteParents(level, null)
     return {}
   }
 
@@ -168,11 +182,16 @@ export class Writer extends Reader {
    * @returns {Task.Task<{}, Error>}
    */
   *deleteParents(level, key) {
-    const node = yield* this.getNode(level + 1, key)
-    if (node !== null) {
-      yield* this.store.deleteNode(level + 1, key)
+    const stack = [{ level, key }]
 
-      yield* this.deleteParents(level + 1, key)
+    while (stack.length > 0) {
+      const { level, key } = /** @type {stack[0]} */ (stack.pop())
+      const node = yield* this.getNode(level + 1, key)
+
+      if (node !== null) {
+        yield* this.store.deleteNode(level + 1, key)
+        stack.push({ level: level + 1, key })
+      }
     }
     return {}
   }
@@ -184,12 +203,17 @@ export class Writer extends Reader {
    * @returns {Task.Task<{}, Error>}
    */
   *createParents(level, key) {
-    const hash = yield* getHash(this, level + 1, key)
-    const node = /** @type {Okra.Node} */ ({ level: level + 1, key, hash })
-    yield* this.store.setNode(node)
+    const stack = [{ level: level + 1, key }]
 
-    if (isBoundary(this, node)) {
-      yield* this.createParents(level + 1, key)
+    while (stack.length > 0) {
+      const { level, key } = /** @type {stack[0]} */ (stack.pop())
+      const hash = yield* getHash(this, level, key)
+      const node = { level, key, hash }
+      yield* this.store.setNode(node)
+
+      if (isBoundary(this, node)) {
+        stack.push({ level: level + 1, key })
+      }
     }
     return {}
   }
