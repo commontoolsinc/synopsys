@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.0.1](https://github.com/commontoolsinc/synopsys/compare/v5.0.0...v5.0.1) (2024-11-19)
+
+
+### Bug Fixes
+
+* unexpected root node error ([78b6630](https://github.com/commontoolsinc/synopsys/commit/78b66307f6e7397de8af2eccc69f64a9b43863dc))
+* unexpected root node error ([#67](https://github.com/commontoolsinc/synopsys/issues/67)) ([95057ae](https://github.com/commontoolsinc/synopsys/commit/95057ae9e3e4f9f44b92f92e142bb032531b22ee))
+
 ## [5.0.0](https://github.com/commontoolsinc/synopsys/compare/v4.1.0...v5.0.0) (2024-11-18)
 
 
