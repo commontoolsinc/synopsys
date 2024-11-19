@@ -116,10 +116,6 @@ export class Writer extends Reader {
   }
 
   /**
-   *
-   * @param {Okra.Node} node
-   */
-  /**
    * @param {Okra.Node} node
    */
   *replaceBoundary(node) {
