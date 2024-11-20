@@ -5,13 +5,17 @@ import { Task } from 'datalogia'
 import { refer } from '../datum/reference.js'
 import { channel } from '../replica/sync.js'
 import * as Sync from '../sync.js'
+import * as WS from 'synopsys/web-socket'
 
 /**
  * @typedef {(request: Request) => Promise<Response>} Fetch
  *
+ * @typedef {{new(url: URL|string): WebSocket}} WebSocketConstructor
+ *
  * @typedef {object} Connection
  * @property {URL} url
  * @property {Fetch} [fetch]
+ * @property {WebSocketConstructor} [WebSocket]
  */
 
 /**
@@ -19,8 +23,11 @@ import * as Sync from '../sync.js'
  *
  * @param {Connection} connection
  */
-export const open = ({ url, fetch = globalThis.fetch.bind(globalThis) }) =>
-  RemoteSession.open({ url, fetch })
+export const open = ({
+  url,
+  WebSocket = WS.WebSocket,
+  fetch = globalThis.fetch.bind(globalThis),
+}) => RemoteSession.open({ url, WebSocket, fetch })
 
 /**
  * @implements {Type.SynchronizationSource}
@@ -29,9 +36,27 @@ class RemoteSession {
   /**
    * @param {Required<Connection>} connection
    */
-  static *open(connection) {
+  static open(connection) {
+    switch (connection.url.protocol) {
+      case 'ws:':
+      case 'wss:':
+        return RemoteSession.Socket(connection)
+      case 'http:':
+      case 'https:':
+        return RemoteSession.Request(connection)
+      default:
+        throw new Error('Unsupported protocol')
+    }
+  }
+  /**
+   *
+   * @param {object} connection
+   * @param {URL} connection.url
+   * @param {Fetch} connection.fetch
+   */
+  static *Request({ url, fetch }) {
     const { readable, writable } = new TransformStream()
-    const request = new Request(connection.url, {
+    const request = new Request(url, {
       method: 'POST',
       // @ts-expect-error - `duplex` is required but TS does not seem to
       // know of it.
@@ -42,12 +67,31 @@ class RemoteSession {
       body: readable,
     })
 
-    const response = yield* Task.wait(connection.fetch(request))
+    const response = yield* Task.wait(fetch(request))
     if (response.status !== 200 || !response.body) {
       throw new Error('Failed to open session')
     }
 
     const session = new RemoteSession({ readable: response.body, writable })
+    Task.perform(session.poll())
+
+    return session
+  }
+
+  /**
+   * @param {object} connection
+   * @param {URL} connection.url
+   * @param {WebSocketConstructor} connection.WebSocket
+   */
+  static *Socket({ url, WebSocket }) {
+    const socket = new WebSocket(url)
+    socket.binaryType = 'arraybuffer'
+
+    yield* Task.wait(
+      new Promise((resolve) => socket.addEventListener('open', resolve))
+    )
+    const session = new RemoteSession(WS.from(socket))
+
     Task.perform(session.poll())
 
     return session
@@ -98,7 +142,7 @@ class RemoteSession {
    * @returns {Task.Task<any, Error>}
    */
   *perform(command) {
-    const request = { ...command, cause: this.cause }
+    const request = { ...command }
     const port = channel()
     const id = refer(request)
 

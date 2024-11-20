@@ -5,6 +5,8 @@ import * as Store from './store.js'
 import * as Blobs from './blob.js'
 import * as Sync from './sync.js'
 import process from 'node:process'
+import { WebSocketServer } from 'ws'
+import * as WS from './web-socket.js'
 
 export const KiB = 1024
 export const MiB = KiB * 1024
@@ -30,7 +32,6 @@ export const main = function* ({
   })
   const sync = yield* Sync.open({ store: data })
   const service = yield* Service.open({
-    sync,
     store: data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
@@ -41,6 +42,8 @@ export const main = function* ({
     const socket = yield* HTTP.listen({ port })
     const server = yield* Task.fork(serve(service, socket))
     console.log(`Listening ${HTTP.endpoint(socket)}`)
+    yield* Task.fork(connect(sync, socket))
+
     const reason = yield* Task.wait(onTerminate())
     server.abort(reason)
   } finally {
@@ -79,6 +82,21 @@ function* serve(service, socket) {
   } finally {
     connection.close()
   }
+}
+
+/**
+ *
+ * @param {Sync.Service} service
+ * @param {HTTP.ServerSocket} socket
+ */
+function* connect(service, socket) {
+  const wss = new WebSocketServer({ server: socket })
+  wss.on('connection', (connection) => {
+    const socket = WS.from(connection)
+    socket.readable
+      .pipeThrough(Sync.synchronize(service))
+      .pipeTo(socket.writable)
+  })
 }
 
 Task.perform(main())

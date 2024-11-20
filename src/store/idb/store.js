@@ -293,7 +293,6 @@ export class NodeStore {
   }
 
   /**
-   *
    * @param {number} level
    * @param {Okra.Bound<Okra.Key> | null} [lowerBound]
    * @param {Okra.Bound<Okra.Key>|null} [upperBound]
