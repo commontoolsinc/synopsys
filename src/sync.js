@@ -7,7 +7,7 @@ export const contentType = 'application/synopsys-sync'
 class Synchronizer {
   /**
    * @param {object} source
-   * @param {FS.FileHandle} source.file
+   * @param {import('node:fs/promises').FileHandle} source.file
    * @param {bigint} source.offset
    */
   constructor({ file, offset }) {
