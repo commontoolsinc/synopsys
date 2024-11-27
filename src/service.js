@@ -38,7 +38,7 @@ const rewrite = (request, path) => {
  * Connects to the  service by opening the underlying store.
  *
  * @param {object} source
- * @param {Sync.Service} source.sync
+ * @param {Sync.Service} [source.sync]
  * @param {Replica.Store} source.store
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
@@ -47,19 +47,20 @@ export const open = function* ({ store, blobs, sync }) {
   const source = yield* Source.open(store)
   const replica = yield* Replica.open({ local: { source } })
 
-  return new Service(replica, sync, source, blobs)
+  return new Service({ replica, sync, source, blobs })
 }
 
 export class Service {
   /**
-   * @param {Sync.Service} sync
-   * @param {Replica.Replica} replica
-   * @param {Replica.DataSource} source
-   * @param {Replica.BlobStore} blobs
-   * @param {Map<string, ReturnType<broadcast>>} subscriptions
+   * @param {object} input
+   * @param {Replica.Replica} input.replica
+   * @param {Replica.DataSource} input.source
+   * @param {Replica.BlobStore} input.blobs
+   * @param {Sync.Service} [input.sync]
+   * @param {Map<string, ReturnType<broadcast>>} [input.subscriptions]
    *
    */
-  constructor(replica, sync, source, blobs, subscriptions = new Map()) {
+  constructor({ replica, sync, source, blobs, subscriptions = new Map() }) {
     this.replica = replica
     this.sync = sync
     this.source = source
@@ -134,6 +135,13 @@ export function* patch(self, request) {
   const contentType = request.headers.get('content-type')
   switch (contentType) {
     case Sync.contentType: {
+      if (self.sync == null) {
+        return yield* error(
+          { message: 'Synchronization service is not available' },
+          { status: 503 }
+        )
+      }
+
       yield* Sync.push(
         self.sync,
         /** @type {ReadableStream<Uint8Array>} */ (request.body)
@@ -210,6 +218,13 @@ export function* post(self, request) {
 
   switch (accept) {
     case Sync.contentType: {
+      if (self.sync == null) {
+        return yield* error(
+          { message: 'Synchronization service is not available' },
+          { status: 503 }
+        )
+      }
+
       if (request.body) {
         yield* Sync.push(self.sync, request.body)
         return yield* respond(
@@ -356,7 +371,7 @@ export function* importBlob(self, request) {
  * @typedef {object} Self
  * @property {DB.API.Querier} source - The underlying data store.
  * @property {Replica.BlobReader} blobs
- * @property {Sync.Service} sync
+ * @property {Sync.Service} [sync]
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
@@ -482,6 +497,12 @@ export const get = function* (self, request) {
 export function* pull(self, request) {
   const range = request.headers.get('range') ?? '0-'
   const [start, _end] = range.slice('bytes='.length).split('-').map(Number)
+  if (self.sync == null) {
+    return yield* error(
+      { message: 'Synchronization service is not available' },
+      { status: 503 }
+    )
+  }
   const body = yield* Sync.pull(self.sync, { offset: start })
   return new Response(body, {
     status: 206,

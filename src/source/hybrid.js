@@ -3,26 +3,12 @@ import * as Type from '../store/type.js'
 import { transact, query } from 'datalogia'
 import { differentiate } from '../differential.js'
 import * as Task from '../task.js'
-import * as Remote from '../connection/remote.js'
 import * as Local from '../connection/local.js'
 import * as Source from './store.js'
 import { channel } from '../replica/sync.js'
 import { subscribe } from '../replica/session/local.js'
 import * as Query from '../replica/query.js'
 export { transact, query }
-
-/**
- * @typedef {Type.Variant<{
- *   remote: Remote.Connection
- *   local: Local.Connection
- * }>} Address
- */
-
-/**
- * @param {Address} source
- */
-export const connect = (source) =>
-  source.local ? Local.open(source.local) : Remote.open(source.remote)
 
 /**
  * @typedef {object} Source
