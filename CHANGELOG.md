@@ -1,5 +1,21 @@
 # Changelog
 
+## [5.1.0](https://github.com/commontoolsinc/synopsys/compare/v5.0.1...v5.1.0) (2024-11-27)
+
+
+### Features
+
+* event source based sync ([#69](https://github.com/commontoolsinc/synopsys/issues/69)) ([6b0bb01](https://github.com/commontoolsinc/synopsys/commit/6b0bb01b54a6725a7bbac494bea43f865cf1d19e))
+* implement event-sourcing sync ([0dba100](https://github.com/commontoolsinc/synopsys/commit/0dba100056796cdc0b6d07152cf72a0effa344f1))
+
+
+### Bug Fixes
+
+* browser tests ([516b914](https://github.com/commontoolsinc/synopsys/commit/516b9143c4ece15582368ff0c51f210fae9528a8))
+* regressions ([5e238e4](https://github.com/commontoolsinc/synopsys/commit/5e238e4fa2ed049bb0999e19d56240a8e98beb40))
+* switch to using web-sockets ([4c8978e](https://github.com/commontoolsinc/synopsys/commit/4c8978e6e7852bd6ca330a83682e9ef8525c8be5))
+* types ([1746616](https://github.com/commontoolsinc/synopsys/commit/17466165de9c747121076bdf1fe0a12e80c24084))
+
 ## [5.0.1](https://github.com/commontoolsinc/synopsys/compare/v5.0.0...v5.0.1) (2024-11-19)
 
 
