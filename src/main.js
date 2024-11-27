@@ -7,6 +7,7 @@ import * as Sync from './sync.js'
 import process from 'node:process'
 import { WebSocketServer } from 'ws'
 import * as WS from './web-socket.js'
+import * as FS from 'node:fs/promises'
 
 export const KiB = 1024
 export const MiB = KiB * 1024
@@ -30,9 +31,11 @@ export const main = function* ({
     url,
     mapSize: storeSize,
   })
-  const sync = yield* Sync.open({
-    url: new URL('./sync.synopsys', `${url}`),
-  })
+  const file = yield* Task.wait(
+    FS.open(new URL('./sync.synopsys', `${url}`), 'a+')
+  )
+
+  const sync = yield* Sync.open({ file })
 
   const service = yield* Service.open({
     store: data,

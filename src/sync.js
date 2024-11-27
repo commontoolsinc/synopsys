@@ -1,9 +1,6 @@
 import { Task } from 'datalogia'
-import * as Type from './replica/type.js'
-import * as FS from 'node:fs/promises'
+
 import * as Codec from './codec.js'
-import { Readable } from 'node:stream'
-import { read } from 'node:fs'
 
 export const contentType = 'application/synopsys-sync'
 
@@ -76,10 +73,9 @@ class Synchronizer {
 
 /**
  * @param {object} source
- * @param {URL} source.url
+ * @param {import('node:fs/promises').FileHandle} source.file
  */
-export function* open(source) {
-  const file = yield* Task.wait(FS.open(source.url, 'a+'))
+export function* open({ file }) {
   const { size } = yield* Task.wait(file.stat({ bigint: true }))
   return new Synchronizer({ file, offset: size })
 }
