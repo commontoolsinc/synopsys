@@ -38,7 +38,7 @@ const rewrite = (request, path) => {
  * Connects to the  service by opening the underlying store.
  *
  * @param {object} source
- * @param {Sync.Service} [source.sync]
+ * @param {Sync.Service} source.sync
  * @param {Replica.Store} source.store
  * @param {Replica.BlobStore} source.blobs
  * @returns {Task.Task<Service, Error>}
@@ -52,8 +52,8 @@ export const open = function* ({ store, blobs, sync }) {
 
 export class Service {
   /**
+   * @param {Sync.Service} sync
    * @param {Replica.Replica} replica
-   * @param {Sync.Service|undefined} sync
    * @param {Replica.DataSource} source
    * @param {Replica.BlobStore} blobs
    * @param {Map<string, ReturnType<broadcast>>} subscriptions
@@ -131,6 +131,26 @@ export function* transact(self, changes) {
  * @param {Request} request
  */
 export function* patch(self, request) {
+  const contentType = request.headers.get('content-type')
+  switch (contentType) {
+    case Sync.contentType: {
+      yield* Sync.push(
+        self.sync,
+        /** @type {ReadableStream<Uint8Array>} */ (request.body)
+      )
+
+      return yield* ok({})
+    }
+    default:
+      return yield* edit(self, request)
+  }
+}
+
+/**
+ * @param {MutableSelf} self
+ * @param {Request} request
+ */
+function* edit(self, request) {
   try {
     const body = new Uint8Array(yield* Task.wait(request.arrayBuffer()))
     const changes = /** @type {DB.Transaction} */ (
@@ -187,25 +207,24 @@ export function* put(self, request) {
  */
 export function* post(self, request) {
   const accept = request.headers.get('accept')
-  if (self.sync == null) {
-    return yield* error(
-      { message: 'Sync protocol is not available' },
-      { status: 400, statusText: 'Bad Request' }
-    )
-  }
 
   switch (accept) {
-    case Sync.contentType:
-      return new Response(
-        request.body?.pipeThrough(Sync.synchronize(self.sync)),
-        {
-          status: 200,
-          headers: {
-            ...CORS,
-            contentType: Sync.contentType,
-          },
-        }
-      )
+    case Sync.contentType: {
+      if (request.body) {
+        yield* Sync.push(self.sync, request.body)
+        return yield* respond(
+          { ok: {} },
+          {
+            status: 202,
+          }
+        )
+      } else {
+        return yield* error(
+          { message: 'Missing request body' },
+          { status: 400, statusText: 'Bad Request' }
+        )
+      }
+    }
     default:
       return yield* error(
         { message: 'Unsupported content type' },
@@ -337,6 +356,7 @@ export function* importBlob(self, request) {
  * @typedef {object} Self
  * @property {DB.API.Querier} source - The underlying data store.
  * @property {Replica.BlobReader} blobs
+ * @property {Sync.Service} sync
  * @property {Map<string, ReturnType<broadcast>>} subscriptions - Active query sessions.
  * @property {Replica.Replica} replica
  *
@@ -435,22 +455,43 @@ export const head = function* (self, request) {
  * @param {Request} request
  */
 export const get = function* (self, request) {
-  // If we land on the root URL we just return an empty response.
-  const url = new URL(request.url)
-  if (url.pathname === '/') {
-    return yield* ok({}, { status: 404 })
-  }
-  const accept = request.headers.get('accept')
-
-  switch (accept) {
+  switch (request.headers.get('accept')) {
+    case Sync.contentType:
+      return yield* pull(self, request)
     case Selection.contentType:
     case 'application/json':
       return yield* getSelection(self, request)
     case Subscription.contentType:
       return yield* getSubscription(self, request)
-    default:
-      return yield* getBlob(self, request)
+    default: {
+      // If we land on the root URL we just return an empty response.
+      const url = new URL(request.url)
+      if (url.pathname === '/') {
+        return yield* ok({}, { status: 404 })
+      } else {
+        return yield* getBlob(self, request)
+      }
+    }
   }
+}
+
+/**
+ * @param {Self} self
+ * @param {Request} request
+ */
+export function* pull(self, request) {
+  const range = request.headers.get('range') ?? '0-'
+  const [start, _end] = range.slice('bytes='.length).split('-').map(Number)
+  const body = yield* Sync.pull(self.sync, { offset: start })
+  return new Response(body, {
+    status: 206,
+    headers: {
+      ...CORS,
+      'Content-Type': Sync.contentType,
+      Connection: 'keep-alive',
+      'Transfer-Encoding': 'chunked',
+    },
+  })
 }
 
 /**

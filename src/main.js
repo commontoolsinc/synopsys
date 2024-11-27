@@ -30,19 +30,22 @@ export const main = function* ({
     url,
     mapSize: storeSize,
   })
-  const sync = yield* Sync.open({ store: data })
+  const sync = yield* Sync.open({
+    url: new URL('./sync.synopsys', `${url}`),
+  })
+
   const service = yield* Service.open({
     store: data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
     }),
+    sync,
   })
 
   try {
     const socket = yield* HTTP.listen({ port })
     const server = yield* Task.fork(serve(service, socket))
     console.log(`Listening ${HTTP.endpoint(socket)}`)
-    yield* Task.fork(connect(sync, socket))
 
     const reason = yield* Task.wait(onTerminate())
     server.abort(reason)
@@ -82,21 +85,6 @@ function* serve(service, socket) {
   } finally {
     connection.close()
   }
-}
-
-/**
- *
- * @param {Sync.Service} service
- * @param {HTTP.ServerSocket} socket
- */
-function* connect(service, socket) {
-  const wss = new WebSocketServer({ server: socket })
-  wss.on('connection', (connection) => {
-    const socket = WS.from(connection)
-    socket.readable
-      .pipeThrough(Sync.synchronize(service))
-      .pipeTo(socket.writable)
-  })
 }
 
 Task.perform(main())

@@ -1,6 +1,8 @@
 import { Reference, refer, base32 } from 'merkle-reference'
 import { Link, API } from 'datalogia'
 
+export const { is } = Reference
+
 /**
  * Multiformat code for the merkle reference.
  * @see https://github.com/multiformats/multicodec/pull/357
@@ -73,17 +75,11 @@ export const from = (value) => {
 export const fromString = (source, implicit) => {
   try {
     const bytes = base32.decode(source)
-    if (
-      bytes[0] === CODE &&
-      bytes[1] === SHA256_CODE &&
-      bytes[2] === DIGEST_SIZE &&
-      bytes.length === SIZE
-    ) {
-      return Reference.fromDigest(bytes.subarray(3))
+    const reference = fromBytes(bytes)
+    if (bytes.length !== SIZE) {
+      throw new ReferenceError(`Invalid reference ${source}`)
     } else {
-      throw new ReferenceError(
-        `Invalid reference, expected a reference instead got ${source}`
-      )
+      return reference
     }
   } catch (error) {
     if (implicit === undefined) {
@@ -92,6 +88,45 @@ export const fromString = (source, implicit) => {
       return implicit
     }
   }
+}
+
+/**
+ * @template {{}|null} T
+ * @param {Reference<T>} reference
+ */
+export const toBytes = (reference) => reference['/'].subarray(1)
+
+/**
+ * @template {{}|null} T
+ * @template Out
+ * @param {Reference<T>} reference
+ */
+export function* encode(reference) {
+  yield reference['/'].subarray(1)
+  return SIZE
+}
+
+/**
+ * @param {Uint8Array} source
+ */
+export const fromBytes = (source) => {
+  if (source[0] !== CODE) {
+    throw new ReferenceError(`Invalid reference ${source}`)
+  }
+
+  if (source[1] !== SHA256_CODE) {
+    throw new ReferenceError(`Unsupported hashing algorithm ${source[1]}`)
+  }
+
+  if (source[2] !== DIGEST_SIZE) {
+    throw new ReferenceError(`Invalid digest size ${source[2]}`)
+  }
+
+  if (source.length < SIZE) {
+    throw new RangeError(`Incomplete Reference byte sequence`)
+  }
+
+  return Reference.fromDigest(source.subarray(3, 3 + DIGEST_SIZE))
 }
 
 /**

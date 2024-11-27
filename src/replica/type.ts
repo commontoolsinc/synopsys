@@ -41,7 +41,7 @@ import type { Invocation, Task } from 'datalogia/task'
 import type { Commit } from '../source/store.js'
 import { Phantom } from 'multiformats'
 
-export type Constant = API.Constant
+export type Scalar = API.Constant
 
 export { Commit }
 export type Revision = { id: string }

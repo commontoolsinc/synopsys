@@ -4,7 +4,6 @@ import * as JSON from '@ipld/dag-json'
 import { Task } from 'datalogia'
 import { refer } from '../datum/reference.js'
 import { channel } from '../replica/sync.js'
-import * as Sync from '../sync.js'
 import * as WS from 'synopsys/web-socket'
 
 /**
@@ -62,7 +61,7 @@ class RemoteSession {
       // know of it.
       duplex: 'half',
       headers: {
-        accept: Sync.contentType,
+        accept: 'application/okra-sync',
       },
       body: readable,
     })
