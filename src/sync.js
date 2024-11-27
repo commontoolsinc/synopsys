@@ -1,49 +1,69 @@
-import * as Type from './replica/type.js'
-import * as DAG from './replica/dag.js'
-import * as JSON from '@ipld/dag-json'
 import { Task } from 'datalogia'
-import { refer } from './datum/reference.js'
 
-export const contentType = 'application/okra-sync'
+import * as Codec from './codec.js'
+
+export const contentType = 'application/synopsys-sync'
 
 class Synchronizer {
   /**
    * @param {object} source
-   * @param {Type.Store} source.store
+   * @param {import('node:fs/promises').FileHandle} source.file
+   * @param {bigint} source.offset
    */
-  constructor({ store }) {
-    this.store = store
-    /** @type {TransformStream[]} */
-    this.queue = []
-    /** @type {Type.Variant<{idle:{}, busy:{}}>}  */
-    this.status = { idle: {} }
+  constructor({ file, offset }) {
+    this.file = file
+    this.offset = offset
+    const { readable, writable } = new TransformStream()
+    this.readable = readable
+    this.writer = writable.getWriter()
+    /** @type {Set<WritableStreamDefaultWriter<Uint8Array>>} */
+    this.consumers = new Set()
+
+    this.poll()
   }
+
+  async poll() {
+    for await (const transaction of this.readable) {
+      const chunk = Codec.encodeTransaction(transaction)
+      const { bytesWritten } = await this.file.write(chunk)
+      this.offset += BigInt(bytesWritten)
+
+      for (const consumer of this.consumers) {
+        consumer.write(chunk)
+      }
+    }
+  }
+
   /**
    *
-   * @param {TransformStream} channel
+   * @param {ReadableStream<Uint8Array>} stream
    */
-  *enqueue({ readable, writable }) {
-    this.queue.push({ readable, writable })
-    yield* this.resume()
-  }
-  *resume() {
-    if (this.status.idle) {
-      this.status = { busy: {} }
-      yield* Task.sleep(0)
-      while (this.queue.length > 0) {
-        const { readable, writable } = this.queue[0]
-        this.queue.shift()
-        yield* this.store.write(function* (writer) {
-          const task = interpret(
-            writer,
-            readable.getReader(),
-            writable.getWriter()
-          )
-          return yield* Task.result(task)
-        })
-      }
-      this.status = { idle: {} }
+  async addTransactor(stream) {
+    for await (const transaction of Codec.decode(stream)) {
+      this.writer.write(transaction)
     }
+  }
+
+  /**
+   * @param {WritableStream<Uint8Array>} writable
+   * @param {object} options
+   * @param {number} [options.offset]
+   */
+  async pipeTo(writable, { offset = 0 } = {}) {
+    const writer = writable.getWriter()
+    while (offset < this.offset) {
+      for await (const chunk of this.file.createReadStream({
+        start: offset,
+        autoClose: false,
+      })) {
+        writer.write(chunk)
+        offset += chunk.length
+      }
+    }
+    this.consumers.add(writer)
+
+    await writer.closed.catch(() => {})
+    this.consumers.delete(writer)
   }
 }
 
@@ -53,96 +73,30 @@ class Synchronizer {
 
 /**
  * @param {object} source
- * @param {Type.Store} source.store
+ * @param {import('node:fs/promises').FileHandle} source.file
  */
-export function* open(source) {
-  return new Synchronizer(source)
+export function* open({ file }) {
+  const { size } = yield* Task.wait(file.stat({ bigint: true }))
+  return new Synchronizer({ file, offset: size })
 }
 
 /**
+ *
  * @param {Synchronizer} self
+ * @param {object} options
+ * @param {number} options.offset
  */
-export function synchronize(self) {
-  const { readable: input, writable } = new TransformStream()
-  const { readable, writable: output } = new TransformStream()
-
-  Task.perform(self.enqueue({ readable: input, writable: output }))
-
-  return { writable, readable }
-}
-
-/**
- * @typedef {Type.Variant<{
- *   getRoot: { cause: Type.Reference },
- *   getNode: { cause: Type.Reference, key: Uint8Array, level: number },
- *   getChildren: { cause: Type.Reference, key: Uint8Array, level: number },
- *   integrate: { cause: Type.Reference, changes: Type.Change[] },
- * }>} Command
- *
- * @typedef {object} Outcome
- * @property {Type.Result} result
- * @property {Type.Reference} cause
- */
-
-/**
- *
- * @param {Uint8Array} bytes
- */
-function* toCommand(bytes) {
-  const command = yield* DAG.decode(JSON, bytes)
-  return /** @type {Command} */ (command)
+export function* pull(self, options) {
+  const { readable, writable } = new TransformStream()
+  self.pipeTo(writable, options)
+  return readable
 }
 
 /**
  *
- * @param {Type.PullSource & Type.PushTarget} source
- * @param {ReadableStreamDefaultReader<Uint8Array>} input
- * @param {WritableStreamDefaultWriter<Uint8Array>} output
+ * @param {Synchronizer} self
+ * @param {ReadableStream<Uint8Array>} stream
  */
-export function* interpret(source, input, output) {
-  while (true) {
-    const next = yield* Task.wait(input.read())
-    if (next.done) {
-      return yield* Task.wait(output.close())
-    } else {
-      const command = yield* toCommand(next.value)
-      const cause = refer(command)
-      const result = yield* Task.result(perform(source, command))
-      const response = result.ok
-        ? { result, cause }
-        : {
-            cause,
-            result: {
-              error: {
-                message: result.error?.message ?? 'Unknown error',
-                ...(result.error?.stack ? { stack: result.error.stack } : {}),
-              },
-            },
-          }
-      const payload = yield* DAG.encode(JSON, response)
-      yield* Task.wait(output.write(payload))
-    }
-  }
-}
-
-/**
- * @param {Type.PullSource & Type.PushTarget} source
- * @param {Command} command
- */
-
-function* perform(source, command) {
-  if (command.getRoot) {
-    return yield* source.getRoot()
-  } else if (command.getNode) {
-    return yield* source.getNode(command.getNode.level, command.getNode.key)
-  } else if (command.getChildren) {
-    return yield* source.getChildren(
-      command.getChildren.level,
-      command.getChildren.key
-    )
-  } else if (command.integrate) {
-    return yield* source.integrate(command.integrate.changes)
-  } else {
-    throw new Error('Unknown command')
-  }
+export function* push(self, stream) {
+  return yield* Task.fork(Task.wait(self.addTransactor(stream)))
 }

@@ -59,9 +59,9 @@ export const channel = () => new Channel()
 /**
  * @template In, Out, State
  * @typedef {object} Transformer
- * @property {() => Task.Task<[State, Out[]], Error>} init
- * @property {(state: State, input: In) => Task.Task<[State, Out[]], Error>} step
- * @property {(state: State) => Task.Task<Out[], Error>} close
+ * @property {() => Task.Task<[State, Iterable<Out>], Error>} init
+ * @property {(state: State, input: In) => Task.Task<[State, Iterable<Out>], Error>} step
+ * @property {(state: State) => Task.Task<Iterable<Out>, Error>} close
  */
 
 /**

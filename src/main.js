@@ -5,6 +5,9 @@ import * as Store from './store.js'
 import * as Blobs from './blob.js'
 import * as Sync from './sync.js'
 import process from 'node:process'
+import { WebSocketServer } from 'ws'
+import * as WS from './web-socket.js'
+import * as FS from 'node:fs/promises'
 
 export const KiB = 1024
 export const MiB = KiB * 1024
@@ -28,19 +31,25 @@ export const main = function* ({
     url,
     mapSize: storeSize,
   })
-  const sync = yield* Sync.open({ store: data })
+  const file = yield* Task.wait(
+    FS.open(new URL('./sync.synopsys', `${url}`), 'a+')
+  )
+
+  const sync = yield* Sync.open({ file })
+
   const service = yield* Service.open({
-    sync,
     store: data,
     blobs: yield* Blobs.open({
       url: new URL('./blobs/', `${url}`),
     }),
+    sync,
   })
 
   try {
     const socket = yield* HTTP.listen({ port })
     const server = yield* Task.fork(serve(service, socket))
     console.log(`Listening ${HTTP.endpoint(socket)}`)
+
     const reason = yield* Task.wait(onTerminate())
     server.abort(reason)
   } finally {
