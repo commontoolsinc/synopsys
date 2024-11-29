@@ -82,6 +82,11 @@
       "types": "./dist/src/web-socket.d.ts",
       "node": "./src/web-socket.node.js",
       "default": "./src/web-socket.js"
+    },
+    "./datum/reference": {
+      "types": "./dist/src/datum/reference.d.ts",
+      "node": "./src/datum/reference.js",
+      "default": "./src/datum/reference.js"
     }
   },
   "dependencies": {
