@@ -1,6 +1,6 @@
 import * as Type from './type.js'
 import { isLink } from 'multiformats/link'
-import { refer, Reference } from 'merkle-reference'
+import { refer, fromDigest } from 'merkle-reference'
 
 /**
  * @typedef {object} Options
@@ -224,7 +224,7 @@ export function* decode(decoder, bytes) {
     implicit: {},
     link: (link) => {
       if (link.code === REFERENCE_CODE) {
-        return Reference.fromDigest(link.multihash.digest)
+        return fromDigest(link.multihash.digest)
       } else {
         return link
       }

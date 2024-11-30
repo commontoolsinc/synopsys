@@ -42,8 +42,8 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0
       merkle-reference:
-        specifier: ^0.0.3
-        version: 0.0.3
+        specifier: ^1.1.0
+        version: 1.1.0
       multiformats:
         specifier: ^13.3.0
         version: 13.3.0
@@ -853,8 +853,8 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
-  merkle-reference@0.0.3:
-    resolution: {integrity: sha512-TcqhF74XE1QrdccZkNyIdI3lglw6LarJcKy46I7qqo4vPXJ0fWkD7tcwCPqXCdg3sxOhbwpYP/1t/uiorWBGCQ==}
+  merkle-reference@1.1.0:
+    resolution: {integrity: sha512-Xc3vbhdwOja5eSVPoaGYnyR0yOWogAXEVDv0wFLnPOkZ/JSVVb3DnqwsMzkFYDOjBQGEAtYq3VwXieDRre16DQ==}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -2044,7 +2044,7 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  merkle-reference@0.0.3:
+  merkle-reference@1.1.0:
     dependencies:
       '@noble/hashes': 1.3.3
       multiformats: 13.3.0

@@ -6,7 +6,7 @@ import * as Subscription from '../subscription.js'
 import * as Task from '../../task.js'
 import * as DAG from '../dag.js'
 import * as JSON from '@ipld/dag-json'
-import { of as refer } from '../../datum/reference.js'
+import { refer } from '../../datum/reference.js'
 import { broadcast } from '../sync.js'
 
 /**

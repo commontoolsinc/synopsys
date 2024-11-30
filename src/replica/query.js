@@ -4,7 +4,7 @@ import * as Task from '../task.js'
 import * as JSON from '@ipld/dag-json'
 import * as DAG from './dag.js'
 import { Var } from 'datalogia'
-import { Reference } from 'merkle-reference'
+import { is as isReference } from '../datum/reference.js'
 import Scope from './query/scope.js'
 
 export const contentType = `application/synopsys-query+json`
@@ -176,7 +176,7 @@ export const readForm = function* (source, scope) {
       forms.push(form)
     }
     return forms
-  } else if (Reference.is(source)) {
+  } else if (isReference(source)) {
     return source
   }
   // If it is an object we recursively process each member pair.

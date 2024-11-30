@@ -33,10 +33,10 @@
       "import": "./src/lib.js",
       "default": "./src/lib.js"
     },
-    "./agent": {
-      "types": "./dist/src/agent.d.ts",
-      "import": "./src/agent.js",
-      "default": "./src/agent.js"
+    "./replica": {
+      "types": "./dist/src/replica.d.ts",
+      "import": "./src/replica.js",
+      "default": "./src/replica.js"
     },
     "./service": {
       "types": "./dist/src/service.d.ts",
@@ -101,7 +101,7 @@
     "@types/node": "22.5.5",
     "datalogia": "^0.9.2",
     "multiformats": "^13.3.0",
-    "merkle-reference": "^0.0.3",
+    "merkle-reference": "^1.1.0",
     "uint8arrays": "^5.1.0",
     "ws": "^8.18.0",
     "@types/ws": "^8.5.13"

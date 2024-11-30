@@ -8,7 +8,7 @@ import { base32 } from 'merkle-reference'
 export const testReference = {
   fromString: (assert) => {
     const hello = refer('hello')
-    assert.deepEqual(hello, Reference.fromString(hello.toString()))
+    assert.deepEqual(Reference.fromString(hello.toString()), hello)
   },
   invalidStringReference: (assert) => {
     const hello = refer('hello')

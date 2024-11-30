@@ -2,7 +2,7 @@ import { transform } from './sync.js'
 import * as DAG from './dag.js'
 import * as JSON from '@ipld/dag-json'
 import * as Type from './type.js'
-import { of as refer } from '../datum/reference.js'
+import { refer } from '../datum/reference.js'
 import * as UTF8 from '../utf8.js'
 
 export const contentType = `application/synopsys+json`
