@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.1.1](https://github.com/commontoolsinc/synopsys/compare/v5.1.0...v5.1.1) (2024-11-30)
+
+
+### Bug Fixes
+
+* expose Reference from the lib ([7fb2250](https://github.com/commontoolsinc/synopsys/commit/7fb225055b0bdd19a4abbbe962cc5ee90e05551d))
+* expose Reference from the lib ([#76](https://github.com/commontoolsinc/synopsys/issues/76)) ([3d0db35](https://github.com/commontoolsinc/synopsys/commit/3d0db354216391729d2a5e3dc58d3f99e5575761))
+
 ## [5.1.0](https://github.com/commontoolsinc/synopsys/compare/v5.0.1...v5.1.0) (2024-11-27)
 
 
