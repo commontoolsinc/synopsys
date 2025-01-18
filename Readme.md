@@ -1,5 +1,9 @@
 # Synopsys
 
+> ## ⚠️ Suspended
+>
+> Development is suspended, any use of this code is at your own risk. If you're intereseted in this you may want to chechout [datalogia](https://github.com/gozala/datalogia).
+
 Synopsys is proof of concept datastore service. It stores facts in terms of entity attribute value triples and allows clients to subscribe to _(datomic inspired)_ queries pushing updates to them when new transactions affect results.
 
 ![image](./cover.png)
