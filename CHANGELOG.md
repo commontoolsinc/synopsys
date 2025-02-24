@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.2.0](https://github.com/commontoolsinc/synopsys/compare/v5.1.1...v5.2.0) (2025-02-24)
+
+
+### Features
+
+* geometric tree backend ([fab0dd4](https://github.com/commontoolsinc/synopsys/commit/fab0dd4eb8d16ba89fabdcb22a452bf9a35efec6))
+* integrate geometric tree backend ([#80](https://github.com/commontoolsinc/synopsys/issues/80)) ([5703b8d](https://github.com/commontoolsinc/synopsys/commit/5703b8d09231e5bf9104f15b8abc399adce72900))
+
 ## [5.1.1](https://github.com/commontoolsinc/synopsys/compare/v5.1.0...v5.1.1) (2024-11-30)
 
 
